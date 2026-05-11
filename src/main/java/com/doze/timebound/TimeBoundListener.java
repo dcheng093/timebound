@@ -1,0 +1,1427 @@
+package com.doze.timebound;
+
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
+import org.bukkit.FluidCollisionMode;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
+import org.bukkit.entity.ItemDisplay;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerItemDamageEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.event.player.PlayerToggleSprintEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.RayTraceResult;
+import org.bukkit.util.Vector;
+
+import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+
+public class TimeBoundListener implements Listener {
+
+    private static final int PASSIVE_CHANCE = 5;
+    private static final int ULT_CHARGE_REQUIRED = 5;
+    private static final int FREEZE_PASSIVE_TICKS = 100;
+    private static final int SERVER_RADIUS = 50;
+    private static final int FREEZE_TICKS = 100;
+    private static final int REVERSED_CONTROLS_TICKS = 100;
+
+    private final Main plugin;
+    private final Map<String, Long> abilityCooldowns = new HashMap<>();
+    private final Map<String, Integer> ultCharges = new HashMap<>();
+    private final Map<String, BossBar> ultBars = new HashMap<>();
+    private final Map<String, BossBar> cooldownBars = new HashMap<>();
+    private final Map<String, BossBar> victimBars = new HashMap<>();
+
+    private final Deque<ReverseItemAction> reverseItemActions = new ArrayDeque<>();
+    private final Map<UUID, Long> reverseAbsorbUntil = new HashMap<>();
+    private final Map<UUID, Double> reverseAbsorbedDamage = new HashMap<>();
+    private final Map<UUID, Long> reversedControlsUntil = new HashMap<>();
+    private final Map<UUID, DeathSnapshot> recentDeaths = new HashMap<>();
+
+    private final Map<UUID, Long> brakeSprintBlockedUntil = new HashMap<>();
+    private final Map<UUID, Integer> skipStacks = new HashMap<>();
+    private final Map<UUID, Integer> skipCharges = new HashMap<>();
+    private final Map<UUID, Long> skipLastRegen = new HashMap<>();
+    private final Map<UUID, Long> skipInternalCooldowns = new HashMap<>();
+    private final Map<UUID, BossBar> skipChargeBars = new HashMap<>();
+    private final Map<UUID, Long> skipLastHitTime = new HashMap<>();
+
+    public TimeBoundListener(Main plugin) {
+        this.plugin = plugin;
+        Bukkit.getScheduler().runTaskTimer(plugin, this::refreshHeldUltMeters, 10L, 10L);
+
+        // STACK DECAY & CHARGE REGEN LOOP
+        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            long now = System.currentTimeMillis();
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                UUID id = player.getUniqueId();
+
+                // 1. Time Skip Charge Regen
+                int charges = skipCharges.getOrDefault(id, 3);
+                if (charges < 3) {
+                    long lastRegen = skipLastRegen.getOrDefault(id, now);
+                    if (now - lastRegen >= 10000) {
+                        charges++;
+                        skipCharges.put(id, charges);
+                        skipLastRegen.put(id, now);
+                        player.sendMessage(ChatColor.YELLOW + "Time Skip Charge Restored (" + charges + "/3)");
+                        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.2f);
+                    }
+                }
+
+                Blade heldBlade = getBlade(player.getInventory().getItemInMainHand());
+                if (heldBlade == Blade.SKIP) {
+                    updateSkipChargeBar(player, charges, skipLastRegen.getOrDefault(id, now), now);
+                } else {
+                    removeSkipChargeBar(player);
+                }
+
+                // 2. Stack Decay Logic (4 seconds without hitting)
+                int stacks = skipStacks.getOrDefault(id, 0);
+                if (stacks > 0) {
+                    long lastHit = skipLastHitTime.getOrDefault(id, now);
+                    if (now - lastHit >= 4000) {
+                        skipStacks.put(id, stacks - 1);
+                        applySkipStackEffects(player, stacks - 1);
+                        skipLastHitTime.put(id, now); // Reset timer so it decays 1 stack every 4 seconds
+
+                        if (stacks - 1 > 0) {
+                            player.sendMessage(ChatColor.RED + "⚡ Stacks Decaying: " + ChatColor.GOLD + (stacks - 1) + "/9");
+                        } else {
+                            player.sendMessage(ChatColor.DARK_RED + "⚡ Time Skip Stacks Lost!");
+                        }
+                    }
+                }
+            }
+        }, 20L, 20L); // Runs once every second
+    }
+
+    public void resetCooldowns(Player player) {
+        UUID id = player.getUniqueId();
+
+        abilityCooldowns.entrySet().removeIf(entry -> entry.getKey().startsWith(id.toString()));
+        ultCharges.entrySet().removeIf(entry -> entry.getKey().startsWith(id.toString()));
+
+        skipInternalCooldowns.remove(id);
+        skipCharges.put(id, 3);
+        skipLastRegen.put(id, System.currentTimeMillis());
+
+        cooldownBars.entrySet().removeIf(entry -> {
+            if (entry.getKey().contains(id.toString())) {
+                entry.getValue().removeAll();
+                return true;
+            }
+            return false;
+        });
+
+        ultBars.entrySet().removeIf(entry -> {
+            if (entry.getKey().contains(id.toString())) {
+                entry.getValue().removeAll();
+                return true;
+            }
+            return false;
+        });
+
+        removeSkipChargeBar(player);
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
+    }
+
+    public void clearSkipStacks(Player player) {
+        UUID id = player.getUniqueId();
+        skipStacks.remove(id);
+        skipLastHitTime.remove(id);
+        applySkipStackEffects(player, 0);
+        player.sendMessage(ChatColor.DARK_RED + "⚡ Stacks Cleared!");
+    }
+
+    @EventHandler
+    public void onUse(PlayerInteractEvent event) {
+        Action action = event.getAction();
+        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
+
+        Player player = event.getPlayer();
+        enforceSingleHeldBlade(player);
+    }
+
+    private void useAbility(Player player, Blade blade) {
+        if (!checkAbilityCooldown(player, blade)) return;
+
+        boolean used = switch (blade) {
+            case FREEZE -> freezeLookedAtEntity(player);
+            case BRAKE -> brakeLookedAtEntity(player);
+            case SKIP -> dashForward(player);
+            case REVERSE -> startDamageAbsorb(player);
+        };
+
+        if (used) {
+            startAbilityCooldown(player, blade);
+        }
+    }
+
+    private void useUlt(Player player, Blade blade) {
+        if (!consumeUltCharge(player, blade)) return;
+
+        switch (blade) {
+            case FREEZE -> freezeServer(player);
+            case BRAKE -> brakeServer(player);
+            case SKIP -> skipServer(player);
+            case REVERSE -> reverseWorld(player);
+        }
+    }
+
+    private boolean checkAbilityCooldown(Player player, Blade blade) {
+        if (blade == Blade.SKIP) return true; // Skip uses dashForward logic
+
+        long cooldownMillis = blade.abilityCooldownMillis;
+        if (cooldownMillis <= 0) return true;
+
+        String key = chargeKey(player, blade);
+        long now = System.currentTimeMillis();
+        long readyAt = abilityCooldowns.getOrDefault(key, 0L);
+        if (readyAt > now) {
+            long secondsLeft = (long) Math.ceil((readyAt - now) / 1000.0);
+            player.sendMessage(ChatColor.RED + blade.displayName + " ability is on cooldown for " + secondsLeft + "s.");
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void startAbilityCooldown(Player player, Blade blade) {
+        if (blade.abilityCooldownMillis <= 0) return;
+        abilityCooldowns.put(chargeKey(player, blade), System.currentTimeMillis() + blade.abilityCooldownMillis);
+        showCooldownBar(player, blade);
+    }
+
+    private boolean consumeUltCharge(Player player, Blade blade) {
+        String key = chargeKey(player, blade);
+        int charge = ultCharges.getOrDefault(key, 0);
+        if (charge < ULT_CHARGE_REQUIRED) {
+            player.sendMessage(ChatColor.RED + blade.displayName + " ult is not charged. " + charge + "/" + ULT_CHARGE_REQUIRED + " player kills.");
+            updateUltBar(player, blade);
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            return false;
+        }
+
+        ultCharges.put(key, 0);
+        updateUltBar(player, blade);
+        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.2f);
+        return true;
+    }
+
+    private boolean freezeLookedAtEntity(Player player) {
+        LivingEntity target = getLookedAtLivingEntity(player, 30);
+        if (target == null) {
+            player.sendMessage("No entity in sight.");
+            return false;
+        }
+
+        if (target instanceof Player p && TrustManager.isTrusted(player, p)) {
+            player.sendMessage(ChatColor.AQUA + "You cannot freeze a trusted player!");
+            return false;
+        }
+
+        // Project the thrown hologram blade
+        spawnThrownBlade(player, target);
+
+        freezeEntity(target, FREEZE_TICKS, true);
+        spawnLineParticles(player, target.getLocation(), Particle.SNOWFLAKE, 15); // Sparse targeting line
+        target.getWorld().spawnParticle(Particle.CLOUD, target.getLocation().add(0, 1.0, 0), 18, 0.35, 0.7, 0.35, 0.01);
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1.0f, 1.2f);
+        target.getWorld().playSound(target.getLocation(), Sound.BLOCK_POWDER_SNOW_PLACE, 1.0f, 0.7f);
+        return true;
+    }
+
+    // ==========================================
+    // THROWN BLADE HOLOGRAM EFFECT
+    // ==========================================
+    private void spawnThrownBlade(Player player, LivingEntity target) {
+        ItemStack weapon = player.getInventory().getItemInMainHand().clone();
+        Location startLoc = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(1.0));
+        Location targetLoc = target.getLocation().add(0, 1.0, 0); // Center of target
+
+        Vector dir = targetLoc.toVector().subtract(startLoc.toVector()).normalize();
+        double distance = startLoc.distance(targetLoc);
+        double speed = 2.5; // High speed throw
+        int maxTicks = (int) Math.ceil(distance / speed);
+
+        // Orient the blade to face the target, then pitch it forward by 90 degrees
+        Location displayLoc = startLoc.clone();
+        displayLoc.setDirection(dir);
+        displayLoc.setPitch(displayLoc.getPitch() + 90f);
+
+        ItemDisplay display = player.getWorld().spawn(displayLoc, ItemDisplay.class, entity -> {
+            entity.setItemStack(weapon);
+            entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.HEAD);
+            entity.setTeleportDuration(1); // Smooth teleport
+        });
+
+        new BukkitRunnable() {
+            int ticks = 0;
+            Location currentLoc = displayLoc.clone();
+
+            @Override
+            public void run() {
+                if (ticks >= maxTicks || !display.isValid() || !target.isValid()) {
+                    // Shatter effect when hitting the target
+                    display.getWorld().spawnParticle(Particle.SNOWFLAKE, display.getLocation(), 25, 0.4, 0.4, 0.4, 0.05);
+                    display.getWorld().spawnParticle(Particle.BLOCK, display.getLocation(), 15, 0.3, 0.3, 0.3, 0.05, Material.BLUE_ICE.createBlockData());
+                    display.getWorld().playSound(display.getLocation(), Sound.BLOCK_GLASS_BREAK, 0.8f, 1.2f);
+                    display.remove();
+                    cancel();
+                    return;
+                }
+
+                // Move blade forward
+                currentLoc.add(dir.clone().multiply(speed));
+                display.teleport(currentLoc);
+
+                // Trail of ice particles behind the blade
+                display.getWorld().spawnParticle(Particle.SNOWFLAKE, currentLoc, 3, 0.1, 0.1, 0.1, 0.01);
+
+                ticks++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private boolean brakeLookedAtEntity(Player player) {
+        LivingEntity target = getLookedAtLivingEntity(player, 30);
+        if (target == null) {
+            player.sendMessage("No entity in sight.");
+            return false;
+        }
+
+        if (target instanceof Player p && TrustManager.isTrusted(player, p)) {
+            player.sendMessage(ChatColor.AQUA + "You cannot brake a trusted player!");
+            return false;
+        }
+
+        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 1, false, true, true));
+        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 100, 1, false, true, true));
+
+        if (target instanceof Player targetPlayer) {
+            brakeSprintBlockedUntil.put(targetPlayer.getUniqueId(), System.currentTimeMillis() + 10000);
+            targetPlayer.setCooldown(Material.SHIELD, 200);
+            showVictimTimer(targetPlayer, "Sprint Locked", 10, BarColor.WHITE);
+            showVictimTimer(targetPlayer, "Shield Disabled", 10, BarColor.RED);
+            targetPlayer.setSprinting(false);
+        }
+        spawnLineParticles(player, target.getLocation(), Particle.SMOKE, 18);
+        target.getWorld().spawnParticle(Particle.SMOKE, target.getLocation().add(0, 1.0, 0), 35, 0.5, 0.8, 0.5, 0.03);
+        target.getWorld().spawnParticle(Particle.ASH, target.getLocation().add(0, 1.0, 0), 18, 0.4, 0.6, 0.4, 0.01);
+        player.playSound(player.getLocation(), Sound.BLOCK_SCULK_SENSOR_CLICKING, 0.8f, 0.6f);
+        target.getWorld().playSound(target.getLocation(), Sound.ENTITY_WARDEN_LISTENING, 0.7f, 1.5f);
+        return true;
+    }
+
+    private boolean dashForward(Player player) {
+        UUID id = player.getUniqueId();
+        long now = System.currentTimeMillis();
+
+        long nextAllowed = skipInternalCooldowns.getOrDefault(id, 0L);
+        if (now < nextAllowed) {
+            long left = (long) Math.ceil((nextAllowed - now) / 1000.0);
+            player.sendMessage(ChatColor.RED + "Time Skip ability is on cooldown for " + left + "s.");
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            return false;
+        }
+
+        int charges = skipCharges.getOrDefault(id, 3);
+        if (charges <= 0) {
+            player.sendMessage(ChatColor.RED + "No Time Skip charges left! Regenerating...");
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            return false;
+        }
+
+        double maxDistance = 14.0;
+        Vector dir = player.getEyeLocation().getDirection().normalize();
+        RayTraceResult ray = player.getWorld().rayTraceBlocks(player.getEyeLocation(), dir, maxDistance, FluidCollisionMode.NEVER, true);
+
+        double dist = ray != null && ray.getHitBlock() != null ? player.getEyeLocation().toVector().distance(ray.getHitPosition()) : maxDistance;
+
+        if (dist < 1.5) {
+            player.sendMessage(ChatColor.RED + "Path is blocked!");
+            return false;
+        }
+
+        Location target = player.getLocation().clone().add(dir.multiply(dist - 0.5));
+        target.setYaw(player.getLocation().getYaw());
+        target.setPitch(player.getLocation().getPitch());
+
+        if (!isSafeDashLocation(target)) {
+            Location up = target.clone().add(0, 1, 0);
+            if (isSafeDashLocation(up)) {
+                target = up;
+            } else {
+                player.sendMessage(ChatColor.RED + "No safe opening to teleport to!");
+                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                return false;
+            }
+        }
+
+        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().clone().add(0, 1.0, 0), 50, 0.5, 1.0, 0.5, 0.1);
+        player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
+
+        player.teleport(target);
+
+        player.getWorld().spawnParticle(Particle.PORTAL, target.clone().add(0, 1.0, 0), 50, 0.5, 1.0, 0.5, 0.1);
+        player.playSound(target, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
+
+        skipInternalCooldowns.put(id, now + 3000L);
+        if (charges >= 3) {
+            skipLastRegen.put(id, System.currentTimeMillis());
+        }
+        skipCharges.put(id, charges - 1);
+
+        return true;
+    }
+
+    private boolean startDamageAbsorb(Player player) {
+        UUID id = player.getUniqueId();
+        reverseAbsorbedDamage.put(id, 0.0);
+        reverseAbsorbUntil.put(id, System.currentTimeMillis() + 5000);
+        StarTimerManager.startTimer(plugin, player, "Reverse Absorb", 5);
+        showVictimTimer(player, "Reverse Absorb", 5, BarColor.PURPLE);
+        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 55, 0.7, 0.9, 0.7, 0.12);
+        player.getWorld().spawnParticle(Particle.WITCH, player.getLocation().add(0, 1.0, 0), 25, 0.4, 0.7, 0.4, 0.02);
+        player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.8f, 1.0f);
+        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 0.6f);
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> releaseAbsorbedDamage(player), 100L);
+        return true;
+    }
+
+    private void freezeServer(Player caster) {
+        StarTimerManager.startTimer(plugin, caster, "Freeze Blade Ult", 10);
+        List<Entity> frozen = new ArrayList<>();
+        caster.getWorld().playSound(caster.getLocation(), Sound.BLOCK_CONDUIT_ACTIVATE, 1.0f, 0.6f);
+        caster.getWorld().spawnParticle(Particle.SNOWFLAKE, caster.getLocation().add(0, 1.0, 0), 180, 3.0, 2.0, 3.0, 0.04);
+
+        for (LivingEntity entity : allLivingEntities()) {
+            if (entity.equals(caster)) continue;
+            if (entity instanceof Player p && TrustManager.isTrusted(caster, p)) continue;
+
+            freezeEntity(entity, 200, true);
+            frozen.add(entity);
+        }
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            for (Entity entity : frozen) {
+                TimeFreezeManager.unfreeze(entity);
+                TimeFreezeManager.applyBufferedDamage(entity);
+                TimeFreezeManager.applyBufferedKnockback(entity);
+                TimeFreezeManager.clear(entity);
+            }
+        }, 200L);
+    }
+
+    private void brakeServer(Player caster) {
+        StarTimerManager.startTimer(plugin, caster, "Brake Blade Ult", 10);
+        caster.getWorld().playSound(caster.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_CURSE, 0.8f, 1.2f);
+        caster.getWorld().spawnParticle(Particle.ASH, caster.getLocation().add(0, 1.0, 0), 120, 3.0, 1.5, 3.0, 0.02);
+
+        for (LivingEntity entity : allLivingEntities()) {
+            if (entity.equals(caster)) continue;
+            if (entity instanceof Player p && TrustManager.isTrusted(caster, p)) continue;
+
+            entity.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 200, 5, false, true, true));
+            if (entity instanceof Player player) {
+                player.setSprinting(false);
+                showVictimTimer(player, "Slowed", 10, BarColor.WHITE);
+            }
+            entity.getWorld().spawnParticle(Particle.SMOKE, entity.getLocation().add(0, 1.0, 0), 30, 0.5, 0.8, 0.5, 0.03);
+            entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_SCULK_SHRIEKER_SHRIEK, 0.25f, 0.7f);
+        }
+    }
+
+    private void skipServer(Player caster) {
+        StarTimerManager.startTimer(plugin, caster, "Skip Blade Ult", 10);
+
+        caster.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 3, false, true, true));
+        caster.getWorld().playSound(caster.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 0.8f, 1.7f);
+        caster.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, caster.getLocation().add(0, 1.0, 0), 90, 1.4, 1.0, 1.4, 0.12);
+
+        for (LivingEntity entity : allLivingEntities()) {
+            if (entity.equals(caster)) continue;
+            if (entity instanceof Player p && TrustManager.isTrusted(caster, p)) continue;
+
+            entity.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 200, 6, false, true, true));
+            entity.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 200, 255, false, true, true));
+            entity.getWorld().spawnParticle(Particle.REVERSE_PORTAL, entity.getLocation().add(0, 1.0, 0), 22, 0.5, 0.8, 0.5, 0.02);
+        }
+    }
+
+    private void reverseWorld(Player caster) {
+        StarTimerManager.startTimer(plugin, caster, "Reverse Blade Ult", 5);
+        reviveRecentDeaths(caster);
+        undoRecentItemActions(caster);
+        caster.getWorld().playSound(caster.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.0f, 0.5f);
+        caster.getWorld().spawnParticle(Particle.PORTAL, caster.getLocation().add(0, 1.0, 0), 120, 2.5, 1.5, 2.5, 0.18);
+
+        Set<Entity> affected = new HashSet<>();
+        for (World world : Bukkit.getWorlds()) {
+            for (Entity entity : world.getEntities()) {
+                if (entity.getWorld().equals(caster.getWorld()) && entity.getLocation().distance(caster.getLocation()) <= SERVER_RADIUS) {
+                    if (entity.equals(caster)) continue;
+                    if (entity instanceof Player p && TrustManager.isTrusted(caster, p)) continue;
+
+                    affected.add(entity);
+                    plugin.getTimeManager().setRewinding(entity, true);
+                }
+            }
+        }
+
+        new BukkitRunnable() {
+            private int ticks;
+
+            @Override
+            public void run() {
+                if (ticks >= 100) {
+                    for (Entity e : affected) plugin.getTimeManager().setRewinding(e, false);
+                    cancel();
+                    return;
+                }
+
+                for (Entity e : affected) {
+                    plugin.getTimeManager().rewindSmooth(e, 1);
+                }
+
+                plugin.getTimeManager().rewindBlocks(1);
+                caster.getWorld().spawnParticle(Particle.REVERSE_PORTAL, caster.getLocation().add(0, 1.0, 0), 28, 1.4, 1.0, 1.4, 0.03);
+                if (ticks % 20 == 0) {
+                    caster.getWorld().playSound(caster.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.7f, 0.6f + ticks / 100.0f);
+                }
+                ticks++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    @EventHandler
+    public void onDamage(EntityDamageEvent event) {
+        Entity target = event.getEntity();
+
+        if (TimeFreezeManager.isFrozen(target)) {
+            event.setCancelled(true);
+
+            if (event.getCause() == EntityDamageEvent.DamageCause.FREEZE) return;
+
+            if (event instanceof EntityDamageByEntityEvent byEntity) {
+                target.getWorld().playSound(target.getLocation(), Sound.ENTITY_PLAYER_HURT_FREEZE, 0.4f, 1.2f);
+                if (byEntity.getDamager() instanceof Player attacker) {
+                    ItemStack weapon = attacker.getInventory().getItemInMainHand();
+                    TimeFreezeManager.bufferDamage(target, event.getDamage(), attacker, weapon);
+
+                    if (getBlade(weapon) == Blade.FREEZE) {
+                        spawnIceSlash(target.getLocation().clone().add(0, 1.0, 0));
+                    }
+
+                } else {
+                    TimeFreezeManager.bufferDamage(target, event.getDamage());
+                }
+                TimeFreezeManager.bufferKnockback(target, target.getLocation().toVector()
+                        .subtract(byEntity.getDamager().getLocation().toVector())
+                        .normalize()
+                        .multiply(0.5));
+            } else {
+                TimeFreezeManager.bufferDamage(target, event.getDamage());
+            }
+            return;
+        }
+
+        if (!(event.getEntity() instanceof Player player)) return;
+
+        UUID id = player.getUniqueId();
+        Long until = reverseAbsorbUntil.get(id);
+        if (until != null && until >= System.currentTimeMillis()) {
+            event.setCancelled(true);
+            reverseAbsorbedDamage.merge(id, event.getDamage(), Double::sum);
+            player.getWorld().spawnParticle(Particle.WITCH, player.getLocation(), 10, 0.5, 0.5, 0.5, 0.01);
+            return;
+        }
+
+        if (until != null) {
+            releaseAbsorbedDamage(player);
+        }
+
+        int stacks = skipStacks.getOrDefault(id, 0);
+        if (stacks > 0) {
+            skipStacks.put(id, stacks - 1);
+            applySkipStackEffects(player, stacks - 1);
+
+            if (stacks - 1 > 0) {
+                player.sendMessage(ChatColor.RED + "⚡ Stacks Lowered: " + ChatColor.GOLD + (stacks - 1) + "/9");
+            } else {
+                player.sendMessage(ChatColor.DARK_RED + "⚡ Time Skip Stacks Lost!");
+            }
+        }
+    }
+
+    @EventHandler
+    public void onHit(EntityDamageByEntityEvent event) {
+        Entity target = event.getEntity();
+
+        if (TimeFreezeManager.isFrozen(target)) {
+            return;
+        }
+
+        if (!(event.getDamager() instanceof Player attacker)) return;
+        if (!(target instanceof LivingEntity victim)) return;
+
+        Blade blade = getBlade(attacker.getInventory().getItemInMainHand());
+        if (blade == null) return;
+
+        if (victim instanceof Player p && TrustManager.isTrusted(attacker, p)) return;
+
+        if (blade == Blade.FREEZE) {
+            spawnIceSlash(victim.getLocation().clone().add(0, 1.0, 0));
+        }
+
+        switch (blade) {
+            case FREEZE -> applyFreezePassive(attacker, victim, event);
+            case BRAKE -> applyBrakePassive(victim);
+            case SKIP -> applySkipPassive(attacker, event);
+            case REVERSE -> applyReversePassive(attacker, victim);
+        }
+    }
+
+    private void spawnIceSlash(Location loc) {
+        if (loc.getWorld() == null) return;
+        loc.getWorld().spawnParticle(Particle.SWEEP_ATTACK, loc, 1);
+        loc.getWorld().spawnParticle(Particle.SNOWFLAKE, loc, 15, 0.4, 0.4, 0.4, 0.05);
+        loc.getWorld().spawnParticle(Particle.BLOCK, loc, 12, 0.3, 0.3, 0.3, 0.05, Material.BLUE_ICE.createBlockData());
+    }
+
+    @EventHandler
+    public void onEntityDeath(EntityDeathEvent event) {
+        if (!(event.getEntity() instanceof Player)) return;
+
+        Player killer = event.getEntity().getKiller();
+        if (killer == null) return;
+
+        Blade blade = getBlade(killer.getInventory().getItemInMainHand());
+        if (blade == null) return;
+
+        String key = chargeKey(killer, blade);
+        int charge = Math.min(ULT_CHARGE_REQUIRED, ultCharges.getOrDefault(key, 0) + 1);
+        ultCharges.put(key, charge);
+        updateUltBar(killer, blade);
+
+        if (charge >= ULT_CHARGE_REQUIRED) {
+            killer.sendMessage(ChatColor.GREEN + blade.displayName + " ult is fully charged.");
+            killer.playSound(killer.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.5f);
+            killer.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, killer.getLocation().add(0, 1.0, 0), 24, 0.4, 0.6, 0.4, 0.02);
+        } else {
+            killer.playSound(killer.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.45f, 1.0f + charge * 0.12f);
+        }
+    }
+
+    @EventHandler
+    public void onDropItem(PlayerDropItemEvent event) {
+        Item item = event.getItemDrop();
+        reverseItemActions.addLast(new ReverseItemAction(
+                ReverseItemActionType.DROP,
+                System.currentTimeMillis(),
+                event.getPlayer().getUniqueId(),
+                item.getUniqueId(),
+                item.getItemStack().clone(),
+                item.getLocation().clone()
+        ));
+        trimReverseItemActions();
+    }
+
+    @EventHandler
+    public void onPickupItem(EntityPickupItemEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+
+        Item item = event.getItem();
+        boolean isDeathDrop = false;
+
+        for (DeathSnapshot snapshot : recentDeaths.values()) {
+            if (snapshot.droppedItemEntities.contains(item.getUniqueId())) {
+                snapshot.pickedUpItems.add(new PickedUp(player.getUniqueId(), item.getItemStack().clone()));
+                isDeathDrop = true;
+            }
+        }
+
+        if (!isDeathDrop) {
+            reverseItemActions.addLast(new ReverseItemAction(
+                    ReverseItemActionType.PICKUP,
+                    System.currentTimeMillis(),
+                    player.getUniqueId(),
+                    item.getUniqueId(),
+                    item.getItemStack().clone(),
+                    item.getLocation().clone()
+            ));
+            trimReverseItemActions();
+        }
+    }
+
+    @EventHandler
+    public void onMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        Long sprintBlockedUntil = brakeSprintBlockedUntil.get(player.getUniqueId());
+        if (sprintBlockedUntil != null) {
+            if (sprintBlockedUntil < System.currentTimeMillis()) {
+                brakeSprintBlockedUntil.remove(player.getUniqueId());
+            } else if (player.isSprinting()) {
+                player.setSprinting(false);
+            }
+        }
+
+        Long until = reversedControlsUntil.get(player.getUniqueId());
+        if (until == null) return;
+
+        if (until < System.currentTimeMillis()) {
+            reversedControlsUntil.remove(player.getUniqueId());
+            return;
+        }
+
+        Location from = event.getFrom();
+        Location to = event.getTo();
+        if (to == null || from.getWorld() == null || !from.getWorld().equals(to.getWorld())) return;
+
+        Vector delta = to.toVector().subtract(from.toVector());
+        delta.setY(0);
+
+        if (delta.lengthSquared() <= 0.0001) return;
+
+        Location reversed = from.clone().subtract(delta);
+        reversed.setY(to.getY());
+        reversed.setYaw(to.getYaw());
+        reversed.setPitch(to.getPitch());
+        event.setTo(reversed);
+    }
+
+    @EventHandler
+    public void onToggleSprint(PlayerToggleSprintEvent event) {
+        Long until = brakeSprintBlockedUntil.get(event.getPlayer().getUniqueId());
+        if (until == null) return;
+
+        if (until < System.currentTimeMillis()) {
+            brakeSprintBlockedUntil.remove(event.getPlayer().getUniqueId());
+            return;
+        }
+
+        if (event.isSprinting()) {
+            event.setCancelled(true);
+            event.getPlayer().setSprinting(false);
+        }
+    }
+
+    @EventHandler
+    public void onDeath(PlayerDeathEvent event) {
+        Player player = event.getEntity();
+
+        List<UUID> droppedUUIDs = new ArrayList<>();
+        for (ItemStack drop : event.getDrops()) {
+            Item item = player.getWorld().dropItemNaturally(player.getLocation(), drop);
+            droppedUUIDs.add(item.getUniqueId());
+        }
+        event.getDrops().clear();
+
+        recentDeaths.put(player.getUniqueId(), new DeathSnapshot(
+                player.getInventory().getContents().clone(),
+                Math.max(1.0, player.getHealth()),
+                player.getFoodLevel(),
+                player.getLocation().clone(),
+                droppedUUIDs,
+                new ArrayList<>()
+        ));
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> recentDeaths.remove(player.getUniqueId()), 100L);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        removeSkipChargeBar(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onBreak(BlockBreakEvent event) {
+        plugin.getTimeManager().recordBlock(event.getBlock().getLocation(), event.getBlock().getType(), Material.AIR);
+    }
+
+    @EventHandler
+    public void onPlace(BlockPlaceEvent event) {
+        plugin.getTimeManager().recordBlock(event.getBlock().getLocation(), Material.AIR, event.getBlock().getType());
+    }
+
+    private void applyFreezePassive(Player attacker, LivingEntity victim, EntityDamageByEntityEvent event) {
+        if (!rollPassive()) return;
+
+        applyPowderSnowPassive(attacker, victim);
+        victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, FREEZE_PASSIVE_TICKS, 9, false, true, true));
+        event.setDamage(event.getDamage() + Math.max(1.0, victim.getFreezeTicks() / 80.0));
+        victim.getWorld().playSound(victim.getLocation(), Sound.BLOCK_POWDER_SNOW_BREAK, 0.8f, 1.1f);
+    }
+
+    private void applyPowderSnowPassive(Player attacker, LivingEntity victim) {
+        victim.setFreezeTicks(victim.getMaxFreezeTicks() + FREEZE_PASSIVE_TICKS);
+
+        keepPowderSnowOverlay(victim, FREEZE_PASSIVE_TICKS, false);
+        if (victim instanceof Player player) {
+            showVictimTimer(player, "Powdered Snow", FREEZE_PASSIVE_TICKS / 20, BarColor.BLUE);
+        }
+
+        new BukkitRunnable() {
+            private int elapsed;
+
+            @Override
+            public void run() {
+                if (!victim.isValid() || elapsed >= FREEZE_PASSIVE_TICKS) {
+                    cancel();
+                    return;
+                }
+
+                victim.setFreezeTicks(victim.getMaxFreezeTicks() + 40);
+                victim.damage(1.0 + elapsed / 40.0);
+                elapsed += 20;
+            }
+        }.runTaskTimer(plugin, 0L, 20L);
+    }
+
+    private void applyBrakePassive(LivingEntity victim) {
+        if (!rollPassive()) return;
+        victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 1, false, true, true));
+        if (victim instanceof Player player) {
+            showVictimTimer(player, "Slowed", 5, BarColor.WHITE);
+        }
+        victim.getWorld().spawnParticle(Particle.ASH, victim.getLocation().add(0, 1.0, 0), 18, 0.4, 0.6, 0.4, 0.01);
+        victim.getWorld().playSound(victim.getLocation(), Sound.BLOCK_CHAIN_PLACE, 0.7f, 0.55f);
+    }
+
+    private void applySkipPassive(Player attacker, EntityDamageByEntityEvent event) {
+        UUID id = attacker.getUniqueId();
+        int currentStacks = skipStacks.getOrDefault(id, 0);
+
+        int stacks = Math.min(9, currentStacks + 1);
+        skipStacks.put(id, stacks);
+        skipLastHitTime.put(id, System.currentTimeMillis());
+
+        attacker.sendMessage(ChatColor.YELLOW + "⚡ Time Skip Stacks: " + ChatColor.GOLD + stacks + "/9");
+
+        applySkipStackEffects(attacker, stacks);
+        attacker.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, attacker.getLocation().add(0, 1.0, 0), 8 + stacks * 4, 0.3, 0.4, 0.3, 0.04);
+        attacker.playSound(attacker.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.45f, 1.0f + stacks * 0.2f);
+    }
+
+    private void applySkipStackEffects(Player player, int stacks) {
+        AttributeInstance speedAttr = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
+        AttributeInstance attackAttr = player.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE);
+
+        NamespacedKey speedKey = new NamespacedKey(plugin, "skip_speed");
+        NamespacedKey attackKey = new NamespacedKey(plugin, "skip_attack");
+
+        if (speedAttr != null) {
+            for (AttributeModifier mod : speedAttr.getModifiers()) {
+                if (mod.getKey().equals(speedKey)) speedAttr.removeModifier(mod);
+            }
+        }
+        if (attackAttr != null) {
+            for (AttributeModifier mod : attackAttr.getModifiers()) {
+                if (mod.getKey().equals(attackKey)) attackAttr.removeModifier(mod);
+            }
+        }
+
+        if (stacks <= 0) {
+            skipStacks.remove(player.getUniqueId());
+            return;
+        }
+
+        int speedLevel = Math.min(5, stacks);
+        int strengthLevel = Math.min(2, stacks / 2);
+
+        if (speedLevel > 0 && speedAttr != null) {
+            speedAttr.addModifier(new AttributeModifier(speedKey, speedLevel * 0.20, AttributeModifier.Operation.ADD_SCALAR));
+        }
+
+        if (strengthLevel > 0 && attackAttr != null) {
+            attackAttr.addModifier(new AttributeModifier(attackKey, strengthLevel * 3.0, AttributeModifier.Operation.ADD_NUMBER));
+        }
+    }
+
+    private void applyReversePassive(Player attacker, LivingEntity victim) {
+        if (!rollPassive()) return;
+
+        plugin.getTimeManager().rewindHealth(attacker, 100);
+        attacker.getWorld().spawnParticle(Particle.HEART, attacker.getLocation().add(0, 1.5, 0), 10, 0.5, 0.5, 0.5, 0.1);
+        attacker.playSound(attacker.getLocation(), Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.8f, 1.2f);
+        attacker.sendMessage(ChatColor.LIGHT_PURPLE + "Your health was reversed to 5 seconds ago!");
+
+        if (victim instanceof Player player) {
+            reversedControlsUntil.put(player.getUniqueId(), System.currentTimeMillis() + REVERSED_CONTROLS_TICKS * 50L);
+            showVictimTimer(player, "Controls Reversed", REVERSED_CONTROLS_TICKS / 20, BarColor.PURPLE);
+            player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 28, 0.5, 0.8, 0.5, 0.1);
+            player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 0.6f);
+        }
+    }
+
+    private void releaseAbsorbedDamage(Player player) {
+        UUID id = player.getUniqueId();
+        reverseAbsorbUntil.remove(id);
+        Double storedDamage = reverseAbsorbedDamage.remove(id);
+        double damage = storedDamage == null ? 0.0 : storedDamage;
+        if (damage <= 0) return;
+
+        double radius = Math.min(8.0, 3.0 + damage / 4.0);
+        for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
+            if (entity.equals(player) || !(entity instanceof LivingEntity living)) continue;
+            if (living instanceof Player p && TrustManager.isTrusted(player, p)) continue;
+
+            living.damage(Math.max(2.0, damage * 0.75), player);
+            living.setVelocity(living.getLocation().toVector()
+                    .subtract(player.getLocation().toVector())
+                    .normalize()
+                    .multiply(1.2));
+        }
+
+        player.getWorld().spawnParticle(Particle.EXPLOSION, player.getLocation(), 1);
+        player.getWorld().spawnParticle(Particle.SONIC_BOOM, player.getLocation().add(0, 1.0, 0), 1);
+        player.getWorld().spawnParticle(Particle.WITCH, player.getLocation().add(0, 1.0, 0), 60, radius / 3, 1.0, radius / 3, 0.05);
+        player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.7f, 1.2f);
+        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 0.8f, 1.4f);
+    }
+
+    private void reviveRecentDeaths(Player caster) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.equals(caster)) continue;
+
+            DeathSnapshot snapshot = recentDeaths.remove(player.getUniqueId());
+            if (snapshot == null) continue;
+
+            for (UUID itemId : snapshot.droppedItemEntities) {
+                Entity entity = Bukkit.getEntity(itemId);
+                if (entity instanceof Item) {
+                    entity.remove();
+                }
+            }
+
+            for (PickedUp pu : snapshot.pickedUpItems) {
+                Player picker = Bukkit.getPlayer(pu.picker);
+                if (picker != null && picker.isOnline()) {
+                    removeFromInventory(picker.getInventory(), pu.item);
+                }
+            }
+
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline()) return;
+                if (player.isDead()) {
+                    player.spigot().respawn();
+                }
+                player.teleport(snapshot.location);
+                player.getInventory().setContents(snapshot.inventory);
+                player.setHealth(Math.min(20.0, Math.max(1.0, snapshot.health)));
+                player.setFoodLevel(snapshot.food);
+                player.setGameMode(GameMode.SURVIVAL);
+                player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, player.getLocation(), 30, 0.5, 1.0, 0.5, 0.01);
+                player.getWorld().playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.0f, 0.9f);
+            }, 1L);
+        }
+    }
+
+    private void undoRecentItemActions(Player caster) {
+        long cutoff = System.currentTimeMillis() - 5000;
+        Map<UUID, List<ReverseItemAction>> actionsByItem = new HashMap<>();
+
+        while (!reverseItemActions.isEmpty()) {
+            ReverseItemAction action = reverseItemActions.removeLast();
+            if (action.timestamp < cutoff) break;
+            if (action.location.getWorld() != null
+                    && action.location.getWorld().equals(caster.getWorld())
+                    && action.location.distance(caster.getLocation()) <= SERVER_RADIUS) {
+                actionsByItem.computeIfAbsent(action.itemEntityId, ignored -> new ArrayList<>()).add(action);
+            }
+        }
+
+        for (List<ReverseItemAction> actions : actionsByItem.values()) {
+            actions.sort(Comparator.comparingLong(ReverseItemAction::timestamp));
+
+            ReverseItemAction firstDrop = null;
+            ReverseItemAction lastPickup = null;
+            for (ReverseItemAction action : actions) {
+                if (action.type == ReverseItemActionType.DROP && firstDrop == null) {
+                    firstDrop = action;
+                } else if (action.type == ReverseItemActionType.PICKUP) {
+                    lastPickup = action;
+                }
+            }
+
+            if (firstDrop != null) {
+                removeTrackedItemEntity(firstDrop.itemEntityId);
+                if (lastPickup != null) {
+                    Player picker = Bukkit.getPlayer(lastPickup.playerId);
+                    if (picker != null && picker.isOnline()) {
+                        removeFromInventory(picker.getInventory(), lastPickup.item.clone());
+                    }
+                }
+
+                Player dropper = Bukkit.getPlayer(firstDrop.playerId);
+                if (dropper != null && dropper.isOnline()) {
+                    giveOrDrop(dropper, firstDrop.item.clone());
+                }
+            } else if (lastPickup != null) {
+                Player picker = Bukkit.getPlayer(lastPickup.playerId);
+                if (picker == null || !picker.isOnline()) continue;
+
+                removeFromInventory(picker.getInventory(), lastPickup.item.clone());
+                lastPickup.location.getWorld().dropItemNaturally(lastPickup.location, lastPickup.item.clone());
+            } else {
+                ReverseItemAction action = actions.get(0);
+                removeTrackedItemEntity(action.itemEntityId);
+                Player player = Bukkit.getPlayer(action.playerId);
+                if (player != null && player.isOnline()) {
+                    giveOrDrop(player, action.item.clone());
+                }
+            }
+        }
+    }
+
+    private void removeTrackedItemEntity(UUID itemEntityId) {
+        for (World world : Bukkit.getWorlds()) {
+            Entity entity = world.getEntity(itemEntityId);
+            if (entity != null) {
+                entity.remove();
+                return;
+            }
+        }
+    }
+
+    private void giveOrDrop(Player player, ItemStack item) {
+        Map<Integer, ItemStack> leftovers = player.getInventory().addItem(item);
+        for (ItemStack leftover : leftovers.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), leftover);
+        }
+    }
+
+    private void removeFromInventory(PlayerInventory inventory, ItemStack item) {
+        int remaining = item.getAmount();
+        ItemStack template = item.clone();
+        template.setAmount(1);
+
+        for (ItemStack content : inventory.getContents()) {
+            if (content == null || !content.isSimilar(template)) continue;
+
+            int removed = Math.min(remaining, content.getAmount());
+            content.setAmount(content.getAmount() - removed);
+            remaining -= removed;
+            if (remaining <= 0) return;
+        }
+    }
+
+    private void trimReverseItemActions() {
+        long cutoff = System.currentTimeMillis() - 5000;
+        while (!reverseItemActions.isEmpty() && reverseItemActions.peekFirst().timestamp < cutoff) {
+            reverseItemActions.removeFirst();
+        }
+    }
+
+    private void freezeEntity(LivingEntity entity, int ticks, boolean powderedSnow) {
+        TimeFreezeManager.freeze(entity);
+        entity.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, ticks, 100, false, true, true));
+        entity.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, ticks, -10, false, false, false));
+        if (powderedSnow) {
+            entity.setFreezeTicks(entity.getMaxFreezeTicks() + ticks);
+            keepPowderSnowOverlay(entity, ticks, true);
+        }
+        if (entity instanceof Player player) {
+            showVictimTimer(player, "Frozen", ticks / 20, BarColor.BLUE);
+        }
+        entity.getWorld().spawnParticle(Particle.SNOWFLAKE, entity.getLocation(), 30, 0.4, 0.6, 0.4, 0.01);
+        entity.getWorld().spawnParticle(Particle.ITEM_SNOWBALL, entity.getLocation().add(0, 1.0, 0), 12, 0.3, 0.5, 0.3, 0.02);
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            TimeFreezeManager.unfreeze(entity);
+            TimeFreezeManager.applyBufferedDamage(entity);
+            TimeFreezeManager.applyBufferedKnockback(entity);
+            TimeFreezeManager.clear(entity);
+        }, ticks);
+    }
+
+    private void keepPowderSnowOverlay(LivingEntity entity, int ticks, boolean requireFrozen) {
+        new BukkitRunnable() {
+            private int elapsed;
+
+            @Override
+            public void run() {
+                if (!entity.isValid() || (requireFrozen && !TimeFreezeManager.isFrozen(entity)) || elapsed >= ticks) {
+                    cancel();
+                    return;
+                }
+
+                entity.setFreezeTicks(entity.getMaxFreezeTicks() + 40);
+                elapsed += 5;
+            }
+        }.runTaskTimer(plugin, 0L, 5L);
+    }
+
+    private LivingEntity getLookedAtLivingEntity(Player player, double range) {
+        RayTraceResult result = player.getWorld().rayTraceEntities(
+                player.getEyeLocation(),
+                player.getEyeLocation().getDirection(),
+                range,
+                0.75,
+                entity -> entity instanceof LivingEntity && !entity.equals(player)
+        );
+
+        if (result == null || !(result.getHitEntity() instanceof LivingEntity living)) return null;
+        return living;
+    }
+
+    private boolean isSafeDashLocation(Location location) {
+        if (location.getWorld() == null) return false;
+        org.bukkit.block.Block feet = location.getBlock();
+        org.bukkit.block.Block head = location.clone().add(0, 1, 0).getBlock();
+        return feet.isPassable() && head.isPassable();
+    }
+
+    @EventHandler
+    public void onItemDamage(PlayerItemDamageEvent event) {
+        if (getBlade(event.getItem()) != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onSwapHands(PlayerSwapHandItemsEvent event) {
+        Player player = event.getPlayer();
+        Blade mainHandBlade = getBlade(event.getMainHandItem());
+        Blade offHandBlade = getBlade(event.getOffHandItem());
+
+        if (mainHandBlade != null && offHandBlade != null) {
+            event.setCancelled(true);
+            player.sendMessage(ChatColor.RED + "You cannot hold Time weapons in both hands.");
+            return;
+        }
+
+        if (mainHandBlade != null) {
+            event.setCancelled(true);
+            if (player.isSneaking()) {
+                useUlt(player, mainHandBlade);
+            } else {
+                useAbility(player, mainHandBlade);
+            }
+            Bukkit.getScheduler().runTask(plugin, () -> moveTimeWeaponToMainHand(player, event.getMainHandItem()));
+        } else if (offHandBlade != null) {
+            event.setCancelled(true);
+            ItemStack weapon = event.getOffHandItem() == null ? null : event.getOffHandItem().clone();
+            moveTimeWeaponToMainHand(player, weapon);
+            if (player.isSneaking()) {
+                useUlt(player, offHandBlade);
+            } else {
+                useAbility(player, offHandBlade);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onHeldSlotChange(PlayerItemHeldEvent event) {
+        Bukkit.getScheduler().runTask(plugin, () -> enforceSingleHeldBlade(event.getPlayer()));
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        Bukkit.getScheduler().runTask(plugin, () -> enforceSingleHeldBlade(player));
+    }
+
+    private List<LivingEntity> allLivingEntities() {
+        List<LivingEntity> result = new ArrayList<>();
+
+        for (World world : Bukkit.getWorlds()) {
+            result.addAll(world.getLivingEntities());
+        }
+
+        return result;
+    }
+
+    private boolean rollPassive() {
+        return ThreadLocalRandom.current().nextInt(100) < PASSIVE_CHANCE;
+    }
+
+    private void updateUltBar(Player player, Blade blade) {
+        String key = chargeKey(player, blade);
+        int charge = ultCharges.getOrDefault(key, 0);
+        BossBar bar = ultBars.computeIfAbsent(key, ignored -> {
+            return Bukkit.createBossBar("", blade.barColor, BarStyle.SEGMENTED_10);
+        });
+
+        if (!bar.getPlayers().contains(player)) {
+            bar.addPlayer(player);
+        }
+
+        double progress = Math.max(0.0, Math.min(1.0, (double) charge / ULT_CHARGE_REQUIRED));
+        bar.setProgress(progress);
+        bar.setTitle(blade.displayName + " Ult Charge: " + charge + "/" + ULT_CHARGE_REQUIRED + " players");
+        bar.setVisible(true);
+    }
+
+    private String chargeKey(Player player, Blade blade) {
+        return player.getUniqueId() + ":" + blade.name();
+    }
+
+    private void refreshHeldUltMeters() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            Blade heldBlade = getBlade(player.getInventory().getItemInMainHand());
+
+            for (Blade blade : Blade.values()) {
+                BossBar bar = ultBars.get(chargeKey(player, blade));
+                if (bar != null) {
+                    if (heldBlade != blade) {
+                        bar.setVisible(false);
+                    }
+                }
+            }
+
+            if (heldBlade != null) {
+                updateUltBar(player, heldBlade);
+            }
+        }
+    }
+
+    private void showCooldownBar(Player player, Blade blade) {
+        String key = "cooldown:" + chargeKey(player, blade);
+        BossBar old = cooldownBars.remove(key);
+        if (old != null) old.removeAll();
+
+        BossBar bar = Bukkit.createBossBar(blade.displayName + " Cooldown", blade.barColor, BarStyle.SOLID);
+        bar.addPlayer(player);
+        cooldownBars.put(key, bar);
+
+        long totalMillis = blade.abilityCooldownMillis;
+        long startedAt = System.currentTimeMillis();
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                long elapsed = System.currentTimeMillis() - startedAt;
+                long remaining = Math.max(0L, totalMillis - elapsed);
+                double progress = Math.max(0.0, Math.min(1.0, (double) remaining / totalMillis));
+
+                bar.setProgress(progress);
+                bar.setTitle(blade.displayName + " Cooldown: " + (long) Math.ceil(remaining / 1000.0) + "s");
+
+                if (remaining <= 0 || !player.isOnline()) {
+                    bar.removeAll();
+                    cooldownBars.remove(key);
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 5L);
+    }
+
+    private void updateSkipChargeBar(Player player, int charges, long lastRegen, long now) {
+        BossBar bar = skipChargeBars.computeIfAbsent(player.getUniqueId(), k -> {
+            BossBar newBar = Bukkit.createBossBar("", BarColor.YELLOW, BarStyle.SOLID);
+            newBar.addPlayer(player);
+            return newBar;
+        });
+
+        if (!bar.getPlayers().contains(player)) {
+            bar.addPlayer(player);
+        }
+
+        if (charges >= 3) {
+            bar.setProgress(1.0);
+            bar.setTitle(ChatColor.YELLOW + "Time Skip: 3/3 Charges");
+        } else {
+            long elapsed = now - lastRegen;
+            long remaining = 10000 - elapsed;
+            double progress = Math.max(0.0, Math.min(1.0, (double) elapsed / 10000.0));
+            bar.setProgress(progress);
+            bar.setTitle(ChatColor.YELLOW + "Time Skip: " + charges + "/3 (Next in " + (long) Math.ceil(remaining / 1000.0) + "s)");
+        }
+        bar.setVisible(true);
+    }
+
+    private void removeSkipChargeBar(Player player) {
+        BossBar bar = skipChargeBars.remove(player.getUniqueId());
+        if (bar != null) {
+            bar.removeAll();
+        }
+    }
+
+    private void showVictimTimer(Player player, String label, int seconds, BarColor color) {
+        String key = "victim:" + player.getUniqueId() + ":" + label;
+        BossBar old = victimBars.remove(key);
+        if (old != null) old.removeAll();
+
+        BossBar bar = Bukkit.createBossBar(label, color, BarStyle.SOLID);
+        bar.addPlayer(player);
+        victimBars.put(key, bar);
+
+        long totalMillis = seconds * 1000L;
+        long startedAt = System.currentTimeMillis();
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                long elapsed = System.currentTimeMillis() - startedAt;
+                long remaining = Math.max(0L, totalMillis - elapsed);
+                double progress = Math.max(0.0, Math.min(1.0, (double) remaining / totalMillis));
+
+                bar.setProgress(progress);
+                bar.setTitle(label + ": " + (long) Math.ceil(remaining / 1000.0) + "s");
+
+                if (remaining <= 0 || !player.isOnline()) {
+                    bar.removeAll();
+                    victimBars.remove(key);
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 5L);
+    }
+
+    private void spawnLineParticles(Player player, Location target, Particle particle, int points) {
+        Location start = player.getEyeLocation();
+        Vector step = target.clone().add(0, 1.0, 0).toVector()
+                .subtract(start.toVector())
+                .multiply(1.0 / points);
+
+        Location current = start.clone();
+        for (int i = 0; i < points; i++) {
+            current.add(step);
+            player.getWorld().spawnParticle(particle, current, 1, 0.02, 0.02, 0.02, 0.0);
+        }
+    }
+
+    private void enforceSingleHeldBlade(Player player) {
+        PlayerInventory inventory = player.getInventory();
+        if (getBlade(inventory.getItemInMainHand()) == null || getBlade(inventory.getItemInOffHand()) == null) return;
+
+        ItemStack offhandBlade = inventory.getItemInOffHand().clone();
+        inventory.setItemInOffHand(null);
+
+        Map<Integer, ItemStack> leftovers = inventory.addItem(offhandBlade);
+        for (ItemStack leftover : leftovers.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), leftover);
+        }
+
+        player.sendMessage(ChatColor.RED + "You cannot hold Time weapons in both hands. The offhand item was moved.");
+    }
+
+    private void moveTimeWeaponToMainHand(Player player, ItemStack weapon) {
+        if (weapon == null || getBlade(weapon) == null) return;
+
+        PlayerInventory inventory = player.getInventory();
+        ItemStack main = inventory.getItemInMainHand();
+        ItemStack offhand = inventory.getItemInOffHand();
+
+        if (getBlade(main) != null && main.isSimilar(weapon)) {
+            inventory.setItemInMainHand(weapon.clone());
+            return;
+        }
+
+        if (getBlade(offhand) != null && offhand.isSimilar(weapon)) {
+            inventory.setItemInOffHand(main == null || main.getType() == Material.AIR ? null : main);
+            inventory.setItemInMainHand(weapon.clone());
+            return;
+        }
+
+        inventory.setItemInMainHand(weapon.clone());
+    }
+
+    private Blade getBlade(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) return null;
+
+        String type = TimeBladeItems.getTaggedType(item);
+        if (type == null) return null;
+
+        return switch (type.toLowerCase(Locale.ROOT)) {
+            case "freeze" -> Blade.FREEZE;
+            case "brake" -> Blade.BRAKE;
+            case "skip" -> Blade.SKIP;
+            case "reverse" -> Blade.REVERSE;
+            default -> null;
+        };
+    }
+
+    private enum Blade {
+        FREEZE("Freeze Time Blade", 60_000L, BarColor.BLUE),
+        BRAKE("Time Brake Mace", 60_000L, BarColor.WHITE),
+        SKIP("Time Skip Blade", 0L, BarColor.YELLOW),
+        REVERSE("Time Reverse Blade", 30_000L, BarColor.PURPLE);
+
+        private final String displayName;
+        private final long abilityCooldownMillis;
+        private final BarColor barColor;
+
+        Blade(String displayName, long abilityCooldownMillis, BarColor barColor) {
+            this.displayName = displayName;
+            this.abilityCooldownMillis = abilityCooldownMillis;
+            this.barColor = barColor;
+        }
+    }
+
+    private enum ReverseItemActionType {
+        DROP,
+        PICKUP
+    }
+
+    private record ReverseItemAction(
+            ReverseItemActionType type,
+            long timestamp,
+            UUID playerId,
+            UUID itemEntityId,
+            ItemStack item,
+            Location location
+    ) {
+    }
+
+    private record PickedUp(UUID picker, ItemStack item) {}
+
+    private record DeathSnapshot(
+            ItemStack[] inventory,
+            double health,
+            int food,
+            Location location,
+            List<UUID> droppedItemEntities,
+            List<PickedUp> pickedUpItems
+    ) {
+    }
+}

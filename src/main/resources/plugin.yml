@@ -1,0 +1,24 @@
+name: TimeBound
+version: 1.0
+main: com.doze.timebound.Main
+api-version: "1.21"
+
+commands:
+  timebound:
+    description: Main TimeBound command
+    usage: /timebound
+    aliases: [tb]
+    permission-message: You do not have permission to use this command.
+  trust:
+    description: Trust a player for TimeBound effects
+    usage: /trust <player>
+  untrust:
+    description: Remove trust from a player
+    usage: /untrust <player>
+permissions:
+  timebound.admin:
+    description: Access to TimeBound admin commands
+    default: op
+softdepend:
+  - WorldEdit
+  - FastAsyncWorldEdit
