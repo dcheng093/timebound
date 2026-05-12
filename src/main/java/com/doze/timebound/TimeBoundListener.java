@@ -95,13 +95,11 @@ public class TimeBoundListener implements Listener {
         this.plugin = plugin;
         Bukkit.getScheduler().runTaskTimer(plugin, this::refreshHeldUltMeters, 10L, 10L);
 
-        // STACK DECAY & CHARGE REGEN LOOP
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             long now = System.currentTimeMillis();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 UUID id = player.getUniqueId();
 
-                // 1. Time Skip Charge Regen
                 int charges = skipCharges.getOrDefault(id, 3);
                 if (charges < 3) {
                     long lastRegen = skipLastRegen.getOrDefault(id, now);
@@ -121,14 +119,13 @@ public class TimeBoundListener implements Listener {
                     removeSkipChargeBar(player);
                 }
 
-                // 2. Stack Decay Logic (4 seconds without hitting)
                 int stacks = skipStacks.getOrDefault(id, 0);
                 if (stacks > 0) {
                     long lastHit = skipLastHitTime.getOrDefault(id, now);
                     if (now - lastHit >= 4000) {
                         skipStacks.put(id, stacks - 1);
                         applySkipStackEffects(player, stacks - 1);
-                        skipLastHitTime.put(id, now); // Reset timer so it decays 1 stack every 4 seconds
+                        skipLastHitTime.put(id, now);
 
                         if (stacks - 1 > 0) {
                             player.sendMessage(ChatColor.RED + "⚡ Stacks Decaying: " + ChatColor.GOLD + (stacks - 1) + "/9");
@@ -138,7 +135,7 @@ public class TimeBoundListener implements Listener {
                     }
                 }
             }
-        }, 20L, 20L); // Runs once every second
+        }, 20L, 20L);
     }
 
     public void resetCooldowns(Player player) {
@@ -215,7 +212,7 @@ public class TimeBoundListener implements Listener {
     }
 
     private boolean checkAbilityCooldown(Player player, Blade blade) {
-        if (blade == Blade.SKIP) return true; // Skip uses dashForward logic
+        if (blade == Blade.SKIP) return true;
 
         long cooldownMillis = blade.abilityCooldownMillis;
         if (cooldownMillis <= 0) return true;
@@ -267,31 +264,26 @@ public class TimeBoundListener implements Listener {
             return false;
         }
 
-        // Project the thrown hologram blade
         spawnThrownBlade(player, target);
 
         freezeEntity(target, FREEZE_TICKS, true);
-        spawnLineParticles(player, target.getLocation(), Particle.SNOWFLAKE, 15); // Sparse targeting line
+        spawnLineParticles(player, target.getLocation(), Particle.SNOWFLAKE, 15);
         target.getWorld().spawnParticle(Particle.CLOUD, target.getLocation().add(0, 1.0, 0), 18, 0.35, 0.7, 0.35, 0.01);
         player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1.0f, 1.2f);
         target.getWorld().playSound(target.getLocation(), Sound.BLOCK_POWDER_SNOW_PLACE, 1.0f, 0.7f);
         return true;
     }
 
-    // ==========================================
-    // THROWN BLADE HOLOGRAM EFFECT
-    // ==========================================
     private void spawnThrownBlade(Player player, LivingEntity target) {
         ItemStack weapon = player.getInventory().getItemInMainHand().clone();
         Location startLoc = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(1.0));
-        Location targetLoc = target.getLocation().add(0, 1.0, 0); // Center of target
+        Location targetLoc = target.getLocation().add(0, 1.0, 0);
 
         Vector dir = targetLoc.toVector().subtract(startLoc.toVector()).normalize();
         double distance = startLoc.distance(targetLoc);
-        double speed = 2.5; // High speed throw
+        double speed = 2.5;
         int maxTicks = (int) Math.ceil(distance / speed);
 
-        // Orient the blade to face the target, then pitch it forward by 90 degrees
         Location displayLoc = startLoc.clone();
         displayLoc.setDirection(dir);
         displayLoc.setPitch(displayLoc.getPitch() + 90f);
@@ -299,7 +291,7 @@ public class TimeBoundListener implements Listener {
         ItemDisplay display = player.getWorld().spawn(displayLoc, ItemDisplay.class, entity -> {
             entity.setItemStack(weapon);
             entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.HEAD);
-            entity.setTeleportDuration(1); // Smooth teleport
+            entity.setTeleportDuration(1);
         });
 
         new BukkitRunnable() {
@@ -309,7 +301,6 @@ public class TimeBoundListener implements Listener {
             @Override
             public void run() {
                 if (ticks >= maxTicks || !display.isValid() || !target.isValid()) {
-                    // Shatter effect when hitting the target
                     display.getWorld().spawnParticle(Particle.SNOWFLAKE, display.getLocation(), 25, 0.4, 0.4, 0.4, 0.05);
                     display.getWorld().spawnParticle(Particle.BLOCK, display.getLocation(), 15, 0.3, 0.3, 0.3, 0.05, Material.BLUE_ICE.createBlockData());
                     display.getWorld().playSound(display.getLocation(), Sound.BLOCK_GLASS_BREAK, 0.8f, 1.2f);
@@ -318,11 +309,9 @@ public class TimeBoundListener implements Listener {
                     return;
                 }
 
-                // Move blade forward
                 currentLoc.add(dir.clone().multiply(speed));
                 display.teleport(currentLoc);
 
-                // Trail of ice particles behind the blade
                 display.getWorld().spawnParticle(Particle.SNOWFLAKE, currentLoc, 3, 0.1, 0.1, 0.1, 0.01);
 
                 ticks++;
@@ -1344,7 +1333,6 @@ public class TimeBoundListener implements Listener {
 
         player.sendMessage(ChatColor.RED + "You cannot hold Time weapons in both hands. The offhand item was moved.");
         
-        // Enforce single clock per type
         enforceSingleClockPerType(player);
     }
 
@@ -1357,7 +1345,6 @@ public class TimeBoundListener implements Listener {
             if (type != null) {
                 int count = clockCount.getOrDefault(type, 0);
                 if (count > 0) {
-                    // Drop excess clock
                     player.getWorld().dropItemNaturally(player.getLocation(), item);
                     player.getInventory().setItem(i, null);
                     player.sendMessage(ChatColor.RED + "You can only hold one " + type.displayName() + " at a time. The extra was dropped.");

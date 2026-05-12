@@ -15,7 +15,6 @@ public class TimeFreezeManager {
     private static final Set<UUID> frozen = new HashSet<>();
     private static final Map<UUID, Location> lockedLocation = new HashMap<>();
 
-    // Updated from Integer to Double for exact damage tracking
     private static final Map<UUID, Double> damageBuffer = new HashMap<>();
     private static final Map<UUID, Player> damageSourceBuffer = new HashMap<>();
     private static final Map<UUID, ItemStack> weaponBuffer = new HashMap<>();
@@ -38,7 +37,6 @@ public class TimeFreezeManager {
     public static void lockPosition(Entity e) {
         Location loc = lockedLocation.get(e.getUniqueId());
         if (loc != null) {
-            // Prevent jerky visual glitches by only teleporting if they actually moved
             if (e.getLocation().distanceSquared(loc) > 0.001) {
                 e.teleport(loc);
             }
@@ -67,7 +65,6 @@ public class TimeFreezeManager {
         if (damage > 0 && e instanceof LivingEntity le) {
             Player attacker = damageSourceBuffer.get(id);
 
-            // Bypass vanilla hit immunity so the accumulated damage actually applies
             le.setNoDamageTicks(0);
 
             if (attacker != null) {
@@ -91,7 +88,6 @@ public class TimeFreezeManager {
         Vector current = knockbackBuffer.getOrDefault(id, new Vector(0, 0, 0));
         current.add(v);
 
-        // Cap the maximum knockback so 100 hits doesn't launch them out of the map
         if (current.lengthSquared() > 9.0) {
             current.normalize().multiply(3.0);
         }

@@ -134,7 +134,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 p.sendMessage(ChatColor.RED + "Unknown clock. Use freeze, brake, reverse, or skip.");
                 return true;
             }
-            // Spawn the clickable hologram 1 block above where the admin is standing
             Main.getInstance().getClockListener().spawnClickableClock(p.getLocation().add(0, 1, 0), clockType);
             p.sendMessage(ChatColor.GREEN + "Spawned a clickable " + clockType.displayName() + "!");
             return true;

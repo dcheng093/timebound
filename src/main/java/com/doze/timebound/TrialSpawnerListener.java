@@ -29,12 +29,10 @@ public class TrialSpawnerListener implements Listener {
         if (event.getClickedBlock() == null) return;
         Block block = event.getClickedBlock();
         
-        // Check if it's a trial spawner (trial_spawner is the block type in 1.21)
         if (block.getType().toString().contains("TRIAL_SPAWNER")) {
             Player player = event.getPlayer();
             UUID playerId = player.getUniqueId();
             
-            // Check if near brake clock schematic (within 30 blocks)
             TimeStructureManager manager = new TimeStructureManager(plugin);
             ArmorStand brakeLoc = findBrakeClockMarker();
             
@@ -50,16 +48,13 @@ public class TrialSpawnerListener implements Listener {
     
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
-        // Check if a trial omen or related entity died
         String entityType = event.getEntityType().toString();
         if (entityType.contains("OMEN") || entityType.contains("TRIAL")) {
-            // Scan for active trial sessions nearby
             Location deathLoc = event.getEntity().getLocation();
             for (TrialSessionData session : new HashMap<>(activeSessions).values()) {
                 if (session.block.getWorld().equals(deathLoc.getWorld()) 
                     && session.block.getLocation().distance(deathLoc) < 50) {
                     session.mobs_defeated++;
-                    // If we defeat enough mobs, consider trial won
                     if (session.mobs_defeated >= 3) {
                         completeTrialSession(session);
                     }
@@ -72,13 +67,11 @@ public class TrialSpawnerListener implements Listener {
         Bukkit.broadcastMessage(ChatColor.BOLD + "" + ChatColor.DARK_PURPLE + session.player.getName() + " has completed the Brake Room Trial!");
         plugin.getLogger().info(session.player.getName() + " completed Brake Room Trial");
         
-        // Spawn the Brake Clock at the trial spawner location
         Location spawnLoc = session.block.getLocation().add(0, 2, 0);
         if (plugin.getClockListener() != null) {
             plugin.getClockListener().spawnClickableClock(spawnLoc, ClockType.BRAKE);
         }
         
-        // Remove from active sessions
         activeSessions.remove(session.player.getUniqueId());
     }
     

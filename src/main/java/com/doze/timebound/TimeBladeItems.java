@@ -54,7 +54,6 @@ public final class TimeBladeItems {
                     bladeType.commandName
             );
 
-            // CUSTOM MODEL DATA FOR YOUR RESOURCE PACK
             if (bladeType == BladeType.FREEZE) {
                 meta.setCustomModelData(1);
             } else if (bladeType == BladeType.SKIP) {

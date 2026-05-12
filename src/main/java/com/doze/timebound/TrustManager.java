@@ -115,7 +115,6 @@ public class TrustManager implements CommandExecutor, TabCompleter {
                 return true;
             }
 
-            // /trust <player>
             Player target = Bukkit.getPlayer(args[0]);
             if (target == null) {
                 player.sendMessage(ChatColor.RED + "Player not found.");

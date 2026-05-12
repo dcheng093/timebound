@@ -16,7 +16,7 @@ public class StarTimerManager {
 
     public static void startTimer(JavaPlugin plugin, Player player, String title, int seconds) {
 
-        stop(player); // ALWAYS reset first
+        stop(player);
 
         BossBar bar = Bukkit.createBossBar(title, BarColor.BLUE, BarStyle.SOLID);
         bar.addPlayer(player);

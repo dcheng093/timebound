@@ -19,6 +19,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.generator.structure.Structure;
@@ -339,19 +340,19 @@ public class TimeStructureManager {
         World world = origin.getWorld();
         int groundY = origin.getBlockY() - 1;
         int total = 0;
-        int solidCount = 0;
+        int goodCount = 0;
 
         for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
             for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
                 Location floor = new Location(world, origin.getBlockX() + x, groundY, origin.getBlockZ() + z);
                 Material below = floor.getBlock().getType();
-                if (below.isSolid() && below != Material.COBWEB && below != Material.AIR) {
-                    solidCount++;
+                if (below.isSolid() && below != Material.COBWEB && below != Material.AIR && below != Material.WATER && below != Material.LAVA) {
+                    goodCount++;
                 }
                 total++;
             }
         }
-        return total > 0 && solidCount >= Math.max(1, total / 4);
+        return total > 0 && goodCount >= Math.max(1, (total * 3) / 4);
     }
 
     private boolean verifyAttachmentArea(Location origin, Clipboard clipboard) {
@@ -361,18 +362,27 @@ public class TimeStructureManager {
         World world = origin.getWorld();
         int total = 0;
         int safeCount = 0;
+        int attachmentPoints = 0;
 
         for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
             for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
                 Location check = new Location(world, origin.getBlockX() + x, origin.getBlockY(), origin.getBlockZ() + z);
                 Material type = check.getBlock().getType();
-                if (type.isAir() || type == Material.STONE || type == Material.DIRT || type == Material.GRASS_BLOCK) {
+                if (type.isAir() || (type.isSolid() && type != Material.COBWEB && type != Material.WATER && type != Material.LAVA)) {
                     safeCount++;
+                }
+                if (x == min.getBlockX() || x == max.getBlockX() || z == min.getBlockZ() || z == max.getBlockZ()) {
+                    if (hasAdjacentSolidSupport(check)) {
+                        attachmentPoints++;
+                    }
                 }
                 total++;
             }
         }
-        return total > 0 && safeCount >= Math.max(1, total / 4);
+        int width = max.getBlockX() - min.getBlockX() + 1;
+        int depth = max.getBlockZ() - min.getBlockZ() + 1;
+        int requiredAttachments = Math.max(1, (width + depth) / 4);
+        return total > 0 && safeCount >= Math.max(1, total / 4) && attachmentPoints >= requiredAttachments;
     }
 
     private boolean pasteClipboard(Clipboard clipboard, Location origin) {
@@ -399,6 +409,53 @@ public class TimeStructureManager {
         Location quartzLocation = marker.clone().add(0, 1, 0);
         quartzLocation.getBlock().setType(Material.QUARTZ_BLOCK);
         progress(origin, "Placed Quartz marker at " + formatLoc(quartzLocation) + " for the brake lever.");
+    }
+
+    private Location findHologramTarget(Location center, ClockType type) {
+        List<Location> carpets = new ArrayList<>();
+        int radius = 15;
+        Material targetCarpet = (type == ClockType.BRAKE) ? Material.GRAY_CARPET : Material.BLACK_CARPET;
+
+        for (int x = -radius; x <= radius; x++) {
+            for (int y = -radius; y <= radius; y++) {
+                for (int z = -radius; z <= radius; z++) {
+                    Location check = center.clone().add(x, y, z);
+                    if (check.getBlock().getType() == targetCarpet) {
+                        carpets.add(check);
+                    }
+                }
+            }
+        }
+
+        if (carpets.isEmpty()) {
+            return center.clone().add(0.5, 1.0, 0.5);
+        }
+
+        if (type == ClockType.SKIP && carpets.size() >= 2) {
+            Location c1 = carpets.get(0);
+            Location c2 = carpets.get(1);
+            double midX = (c1.getX() + c2.getX()) / 2.0;
+            double midY = (c1.getY() + c2.getY()) / 2.0;
+            double midZ = (c1.getZ() + c2.getZ()) / 2.0;
+            return new Location(center.getWorld(), midX + 0.5, midY + 1.0, midZ + 0.5);
+        }
+
+        return carpets.get(0).clone().add(0.5, 1.0, 0.5);
+    }
+
+    private boolean hasAdjacentSolidSupport(Location loc) {
+        for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST, BlockFace.DOWN}) {
+            if (loc.getAdjacentFace(face).getBlock().getType().isSolid()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Location getHighest(Location origin) {
+        World world = origin.getWorld();
+        int highestY = world.getHighestBlockYAt(origin);
+        return new Location(world, origin.getBlockX(), highestY, origin.getBlockZ());
     }
 
     private Location findFirstBlock(Location origin, Clipboard clipboard, Material target) {

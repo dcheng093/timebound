@@ -39,9 +39,6 @@ public class TimeClockListener implements Listener {
         this.plugin = plugin;
     }
 
-    // ==========================================
-    // HOLOGRAM SPAWNING LOGIC
-    // ==========================================
     public void spawnClickableClock(Location loc, ClockType type) {
         ItemDisplay display = loc.getWorld().spawn(loc, ItemDisplay.class, entity -> {
             entity.setItemStack(TimeClockItems.createClock(plugin, type));
@@ -71,14 +68,10 @@ public class TimeClockListener implements Listener {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    // ==========================================
-    // ABILITY LOGIC (PRESS F TO USE OFFHAND)
-    // ==========================================
     @EventHandler
     public void onClockSwap(PlayerSwapHandItemsEvent event) {
         Player player = event.getPlayer();
 
-        // If they have the clock in their offhand and press F:
         ItemStack currentOffhand = player.getInventory().getItemInOffHand();
         ClockType offhandType = TimeClockItems.getClockType(plugin, currentOffhand);
 
@@ -88,7 +81,6 @@ public class TimeClockListener implements Listener {
             return;
         }
 
-        // If they try to press F while it's in their main hand:
         ItemStack currentMainhand = player.getInventory().getItemInMainHand();
         ClockType mainhandType = TimeClockItems.getClockType(plugin, currentMainhand);
 
@@ -98,9 +90,6 @@ public class TimeClockListener implements Listener {
         }
     }
 
-    // ==========================================
-    // UNIFIED INTERACT LISTENER (HOLOGRAMS & RIGHT CLICK)
-    // ==========================================
     @EventHandler
     public void onClockInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
@@ -108,7 +97,6 @@ public class TimeClockListener implements Listener {
 
         Player p = event.getPlayer();
 
-        // 1. HOLOGRAM RETRIEVAL LOGIC (Main Hand)
         if (event.getHand() == EquipmentSlot.HAND) {
             NamespacedKey clickKey = new NamespacedKey(plugin, "clickable_clock");
 
@@ -126,7 +114,6 @@ public class TimeClockListener implements Listener {
                 ClockType holoType = ClockType.fromKey(typeStr);
 
                 if (holoType != null) {
-                    // Check if player already has this clock
                     if (playerHasClock(p, holoType)) {
                         p.sendMessage(Component.text("You already have a " + holoType.displayName() + "!", NamedTextColor.RED));
                         return;
@@ -141,7 +128,6 @@ public class TimeClockListener implements Listener {
                     Location displayLoc = display.getLocation();
                     display.remove();
                     
-                    // Schedule respawn (except for brake)
                     if (holoType != ClockType.BRAKE) {
                         scheduleClockRespawn(displayLoc, holoType);
                     }
@@ -150,8 +136,6 @@ public class TimeClockListener implements Listener {
             }
         }
 
-        // 2. BACKUP RIGHT-CLICK ABILITY TRIGGER
-        // If the client *does* send a right-click packet (e.g. clicking a block), trigger it!
         if (event.getHand() == EquipmentSlot.OFF_HAND) {
             ClockType type = TimeClockItems.getClockType(plugin, p.getInventory().getItemInOffHand());
             if (type != null) {
@@ -167,9 +151,6 @@ public class TimeClockListener implements Listener {
         }
     }
 
-    // ==========================================
-    // ABILITY ACTIVATION LOGIC
-    // ==========================================
     private void activateClock(Player player, ClockType type) {
         long left = cooldownLeft(player.getUniqueId(), type);
         if (left > 0) {
@@ -247,9 +228,6 @@ public class TimeClockListener implements Listener {
     private static class EnumMapBackedCooldowns extends java.util.HashMap<UUID, Map<ClockType, Long>> {
     }
 
-    // ==========================================
-    // CLOCK RESPAWN & INVENTORY VALIDATION
-    // ==========================================
     private boolean playerHasClock(Player player, ClockType type) {
         for (ItemStack item : player.getInventory().getContents()) {
             if (TimeClockItems.getClockType(plugin, item) == type) {
@@ -266,6 +244,6 @@ public class TimeClockListener implements Listener {
             plugin.getClockListener().spawnClickableClock(originalLocation, type);
             Bukkit.broadcastMessage(Component.text(type.displayName() + " has respawned!", type.color()));
             plugin.getLogger().info(type.displayName() + " respawned at " + originalLocation.getBlockX() + ", " + originalLocation.getBlockY() + ", " + originalLocation.getBlockZ());
-        }, CLOCK_RESPAWN_DELAY_MS / 50); // Convert milliseconds to ticks (20 ticks = 1 second)
+        }, CLOCK_RESPAWN_DELAY_MS / 50);
     }
 }

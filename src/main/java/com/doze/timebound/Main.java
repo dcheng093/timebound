@@ -17,13 +17,11 @@ public class Main extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
-        // saveDefaultConfig(); <-- Delete this line!
         timeManager = new TimeManager(this);
         TimeBladeItems.registerRecipes(this);
         registerClockRecipes();
         chunkyMonitor = new ChunkyMonitor();
 
-        // EVENTS
         listener = new TimeBoundListener(this);
         getServer().getPluginManager().registerEvents(listener, this);
         clockListener = new TimeClockListener(this);
@@ -31,9 +29,6 @@ public class Main extends JavaPlugin {
         getServer().getPluginManager().registerEvents(chunkyMonitor, this);
         getServer().getPluginManager().registerEvents(new TrialSpawnerListener(this), this);
 
-        // ... rest of the code remains the same ...
-
-        // COMMANDS
         if (getCommand("timebound") != null) {
             TimeBoundCommand command = new TimeBoundCommand(clockListener);
             getCommand("timebound").setExecutor(command);
@@ -42,8 +37,6 @@ public class Main extends JavaPlugin {
         } else {
             getLogger().warning("timebound command missing in plugin.yml");
         }
-
-        // TRUST COMMANDS
         if (getCommand("trust") != null) {
             TrustManager trustManager = new TrustManager();
             getCommand("trust").setExecutor(trustManager);
@@ -53,8 +46,6 @@ public class Main extends JavaPlugin {
                 getCommand("untrust").setTabCompleter(trustManager);
             }
         }
-
-        // FREEZE LOCK TRACKER
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             for (World w : Bukkit.getWorlds()) {
                 for (Entity e : w.getEntities()) {
@@ -64,8 +55,6 @@ public class Main extends JavaPlugin {
                 }
             }
         }, 1L, 1L);
-
-        // ENTITY TRACKER
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             for (World w : Bukkit.getWorlds()) {
                 for (Entity e : w.getEntities()) {
@@ -73,7 +62,6 @@ public class Main extends JavaPlugin {
                 }
             }
         }, 1L, 1L);
-
         getLogger().info("TimeBound Enabled");
     }
 
@@ -96,10 +84,6 @@ public class Main extends JavaPlugin {
     public ChunkyMonitor getChunkyMonitor() {
         return chunkyMonitor;
     }
-
-    // ==========================================
-    // CLOCK RECIPE REGISTRATION
-    // ==========================================
     private void registerClockRecipes() {
         for (ClockType type : ClockType.values()) {
             NamespacedKey key = new NamespacedKey(this, "clock_recipe_" + type.key());
@@ -133,16 +117,10 @@ public class Main extends JavaPlugin {
                     recipe.addIngredient(org.bukkit.Material.DRAGON_HEAD);
                 }
             }
-            
             Bukkit.addRecipe(recipe);
             getLogger().info("Registered recipe for " + type.displayName());
         }
     }
-
-    // ==========================================
-
-    // SHORTCUT METHOD FOR TIMESTRUCTUREMANAGER
-    // ==========================================
     public NamespacedKey key(String keyName) {
         return new NamespacedKey(this, keyName);
     }
