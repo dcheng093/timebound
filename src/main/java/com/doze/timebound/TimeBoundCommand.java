@@ -39,57 +39,7 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (sub.equals("generate")) {
-            if (!(sender instanceof Player adminPlayer)) {
-                sendColored(sender, NamedTextColor.RED, "Only players can run this command!");
-                return true;
-            }
-            if (!isAdmin(adminPlayer)) {
-                sendColored(adminPlayer, NamedTextColor.RED, "You do not have permission to use this command.");
-                return true;
-            }
-            if (args.length < 2) {
-                sendColored(adminPlayer, NamedTextColor.YELLOW, "Usage: /timebound generate <freeze|brake|reverse|skip|all>");
-                return true;
-            }
 
-            String target = args[1].toLowerCase();
-            if (target.equals("all")) {
-                new TimeStructureManager(Main.getInstance()).generateAll(adminPlayer);
-                return true;
-            }
-
-            ClockType clockType = ClockType.fromKey(target);
-            if (clockType == null) {
-                sendColored(adminPlayer, NamedTextColor.RED, "Unknown clock. Use freeze, brake, reverse, skip, or all.");
-                return true;
-            }
-            new TimeStructureManager(Main.getInstance()).generateSingle(adminPlayer, clockType);
-            return true;
-        }
-
-        if (sub.equals("locate")) {
-            if (!(sender instanceof Player adminPlayer)) {
-                sendColored(sender, NamedTextColor.RED, "Only players can run this command!");
-                return true;
-            }
-            if (!isAdmin(adminPlayer)) {
-                sendColored(adminPlayer, NamedTextColor.RED, "You do not have permission to use this command.");
-                return true;
-            }
-            if (args.length < 2) {
-                sendColored(adminPlayer, NamedTextColor.YELLOW, "Usage: /timebound locate <freeze|brake|reverse|skip>");
-                return true;
-            }
-
-            ClockType clockType = ClockType.fromKey(args[1].toLowerCase());
-            if (clockType == null) {
-                sendColored(adminPlayer, NamedTextColor.RED, "Unknown clock. Use freeze, brake, reverse, or skip.");
-                return true;
-            }
-            new TimeStructureManager(Main.getInstance()).locateStructure(adminPlayer, clockType);
-            return true;
-        }
 
         if (!(sender instanceof Player p)) {
             sendColored(sender, NamedTextColor.RED, "Players only for this subcommand.");
@@ -224,8 +174,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
     private void sendUsage(CommandSender sender) {
         sender.sendMessage(Component.text("TimeBound commands:", NamedTextColor.GOLD));
         if (isAdmin(sender)) {
-            sender.sendMessage(Component.text("/timebound generate <freeze|brake|reverse|skip|all>", NamedTextColor.YELLOW).append(Component.text(" - generate structure(s)", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/timebound locate <freeze|brake|reverse|skip>", NamedTextColor.YELLOW).append(Component.text(" - locate a generated structure", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/timebound give weapons <freeze|brake|reverse|skip>", NamedTextColor.YELLOW).append(Component.text(" - give a weapon", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/timebound give clocks <freeze|brake|reverse|skip>", NamedTextColor.YELLOW).append(Component.text(" - give a clock", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/timebound spawnclock <type>", NamedTextColor.YELLOW).append(Component.text(" - spawn a clickable clock", NamedTextColor.GRAY)));

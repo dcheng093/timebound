@@ -1,7 +1,7 @@
 package com.doze.timebound;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.List;
+
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemFlag;
@@ -10,7 +10,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.List;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 public final class TimeClockItems {
     public static final String CLOCK_KEY = "time_clock";
@@ -24,12 +25,55 @@ public final class TimeClockItems {
         if (meta == null) return item;
 
         meta.displayName(Component.text(type.displayName(), type.color()));
-        meta.lore(List.of(
-                Component.text("Reusable Time Clock", NamedTextColor.GRAY),
-                Component.text(""),
-                Component.text("Right-click to activate ability.", NamedTextColor.WHITE),
-                Component.text("Cooldown: 60 seconds", NamedTextColor.DARK_GRAY)
-        ));
+        
+        List<Component> lore = switch (type) {
+            case FREEZE -> List.of(
+                    Component.text("Ultimate Time-Freezing Device", NamedTextColor.AQUA),
+                    Component.text(""),
+                    Component.text("ABILITY: Right-click", NamedTextColor.WHITE),
+                    Component.text("Freezes target in powdered snow", NamedTextColor.GRAY),
+                    Component.text("Cooldown: 60 seconds", NamedTextColor.DARK_GRAY),
+                    Component.text(""),
+                    Component.text("PASSIVE: Critical Hits", NamedTextColor.AQUA),
+                    Component.text("Applies powdered snow damage on critical hits", NamedTextColor.GRAY),
+                    Component.text("Capped at 5 hearts damage", NamedTextColor.DARK_GRAY)
+            );
+            case BRAKE -> List.of(
+                    Component.text("Temporal Brake Mechanism", NamedTextColor.DARK_GRAY),
+                    Component.text(""),
+                    Component.text("ABILITY: Right-click", NamedTextColor.WHITE),
+                    Component.text("Applies Weakness and Glowing effect", NamedTextColor.GRAY),
+                    Component.text("Disables shields and sprint", NamedTextColor.DARK_GRAY),
+                    Component.text("Cooldown: 60 seconds", NamedTextColor.DARK_GRAY),
+                    Component.text(""),
+                    Component.text("PASSIVE: Weakening Strikes", NamedTextColor.DARK_GRAY),
+                    Component.text("15% chance to inflict Weakness", NamedTextColor.GRAY)
+            );
+            case SKIP -> List.of(
+                    Component.text("Temporal Skip Protocol", NamedTextColor.YELLOW),
+                    Component.text(""),
+                    Component.text("ABILITY: Right-click to Dash", NamedTextColor.WHITE),
+                    Component.text("Teleports up to 14 blocks forward", NamedTextColor.GRAY),
+                    Component.text("3 charges (Restores 1 every 10s)", NamedTextColor.DARK_GRAY),
+                    Component.text(""),
+                    Component.text("PASSIVE: Speed Stacking", NamedTextColor.YELLOW),
+                    Component.text("Critical hits build speed and damage", NamedTextColor.GRAY),
+                    Component.text("Max Speed 5 and Strength 2", NamedTextColor.DARK_GRAY)
+            );
+            case REVERSE -> List.of(
+                    Component.text("Temporal Rewind Engine", NamedTextColor.LIGHT_PURPLE),
+                    Component.text(""),
+                    Component.text("ABILITY: Right-click to Absorb", NamedTextColor.WHITE),
+                    Component.text("Absorbs incoming damage for 5s", NamedTextColor.GRAY),
+                    Component.text("Releases shockwave after absorption", NamedTextColor.DARK_GRAY),
+                    Component.text("Cooldown: 30 seconds", NamedTextColor.DARK_GRAY),
+                    Component.text(""),
+                    Component.text("PASSIVE: Rewind Health", NamedTextColor.LIGHT_PURPLE),
+                    Component.text("5% chance to revert health to 5s ago", NamedTextColor.GRAY)
+            );
+        };
+        
+        meta.lore(lore);
         meta.setUnbreakable(true);
         meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
         meta.getPersistentDataContainer().set(clockKey(plugin), PersistentDataType.STRING, type.key());

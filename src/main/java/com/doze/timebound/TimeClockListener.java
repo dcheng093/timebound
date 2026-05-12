@@ -154,6 +154,31 @@ public class TimeClockListener implements Listener {
         }
     }
 
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        
+        ItemStack cursor = event.getCursor();
+        ItemStack clicked = event.getCurrentItem();
+        
+        ClockType cursorClockType = TimeClockItems.getClockType(plugin, cursor);
+        ClockType clickedClockType = TimeClockItems.getClockType(plugin, clicked);
+        
+        // Check if trying to swap clocks of the same type or create duplicates
+        if (cursorClockType != null && clickedClockType != null && cursorClockType == clickedClockType) {
+            event.setCancelled(true);
+            player.sendMessage(Component.text("You cannot hold 2 of the same " + cursorClockType.displayName() + "!", NamedTextColor.RED));
+            return;
+        }
+        
+        // Check if placing a clock when already having one of that type
+        if (cursorClockType != null && playerHasClock(player, cursorClockType)) {
+            event.setCancelled(true);
+            player.sendMessage(Component.text("You already have a " + cursorClockType.displayName() + "!", NamedTextColor.RED));
+            return;
+        }
+    }
+
     private void activateClock(Player player, ClockType type) {
         long left = cooldownLeft(player.getUniqueId(), type);
         if (left > 0) {
@@ -241,11 +266,15 @@ public class TimeClockListener implements Listener {
     }
 
     private boolean playerHasClock(Player player, ClockType type) {
+        int count = 0;
         ItemStack[] contents = player.getInventory().getContents();
         if (contents != null) {
             for (ItemStack item : contents) {
                 if (TimeClockItems.getClockType(plugin, item) == type) {
-                    return true;
+                    count++;
+                    if (count > 1) {
+                        return true;
+                    }
                 }
             }
         }
