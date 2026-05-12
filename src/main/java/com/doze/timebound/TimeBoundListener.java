@@ -1296,13 +1296,14 @@ public class TimeBoundListener implements Listener {
 
         if (charges >= 3) {
             bar.setProgress(1.0);
-            bar.setTitle(Component.text("Time Skip: 3/3 Charges", NamedTextColor.YELLOW).toString());
+            bar.setTitle("Time Skip: 3/3 Charges");
         } else {
             long elapsed = now - lastRegen;
             long remaining = 10000 - elapsed;
             double progress = Math.max(0.0, Math.min(1.0, (double) elapsed / 10000.0));
             bar.setProgress(progress);
-            bar.setTitle(Component.text("Time Skip: " + charges + "/3 (Next in " + (long) Math.ceil(remaining / 1000.0) + "s)", NamedTextColor.YELLOW).toString());
+            long secondsLeft = (long) Math.ceil(remaining / 1000.0);
+            bar.setTitle("Time Skip: " + charges + "/3 (Next in " + secondsLeft + "s)");
         }
         bar.setVisible(true);
     }
@@ -1334,7 +1335,8 @@ public class TimeBoundListener implements Listener {
                 double progress = Math.max(0.0, Math.min(1.0, (double) remaining / totalMillis));
 
                 bar.setProgress(progress);
-                bar.setTitle(label + ": " + (long) Math.ceil(remaining / 1000.0) + "s");
+                long secondsRemaining = (long) Math.ceil(remaining / 1000.0);
+                bar.setTitle(label + ": " + secondsRemaining + "s");
 
                 if (remaining <= 0 || !player.isOnline()) {
                     bar.removeAll();

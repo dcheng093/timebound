@@ -1,5 +1,8 @@
 package com.doze.timebound;
 
+import java.util.List;
+import java.util.Locale;
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -7,13 +10,11 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.ShapelessRecipe;
+import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.List;
-import java.util.Locale;
-
+@SuppressWarnings("deprecation")
 public final class TimeBladeItems {
 
     public static final String TIME_WEAPON_KEY = "time_weapon";
@@ -54,15 +55,13 @@ public final class TimeBladeItems {
                     bladeType.commandName
             );
 
-            if (bladeType == BladeType.FREEZE) {
-                meta.setCustomModelData(1);
-            } else if (bladeType == BladeType.SKIP) {
-                meta.setCustomModelData(2);
-            } else if (bladeType == BladeType.REVERSE) {
-                meta.setCustomModelData(3);
-            } else if (bladeType == BladeType.BRAKE) {
-                meta.setCustomModelData(4);
-            }
+            int customModelData = switch (bladeType) {
+                case FREEZE -> 1;
+                case SKIP -> 2;
+                case REVERSE -> 3;
+                case BRAKE -> 4;
+            };
+            meta.setCustomModelData(customModelData);
 
             item.setItemMeta(meta);
         }
@@ -84,15 +83,99 @@ public final class TimeBladeItems {
     }
 
     public static void registerRecipes(Main plugin) {
-        for (BladeType type : BladeType.values()) {
-            NamespacedKey key = new NamespacedKey(plugin, type.recipeKey);
-            Bukkit.removeRecipe(key);
+        registerFreezeBladeRecipe(plugin);
+        registerBrakeBladeRecipe(plugin);
+        registerSkipBladeRecipe(plugin);
+        registerReverseBladeRecipe(plugin);
+    }
 
-            ShapelessRecipe recipe = new ShapelessRecipe(key, createBlade(type.commandName));
-            recipe.addIngredient(type.bladeMaterial);
-            recipe.addIngredient(new org.bukkit.inventory.RecipeChoice.ExactChoice(createStar(type.commandName)));
-            Bukkit.addRecipe(recipe);
-        }
+    private static void registerFreezeBladeRecipe(Main plugin) {
+        // Freeze Blade: Blue ice in corners, clock in middle, snowballs around
+        NamespacedKey key = new NamespacedKey(plugin, "freeze_time_blade_recipe");
+        Bukkit.removeRecipe(key);
+        
+        ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.FREEZE);
+        ShapedRecipe recipe = new ShapedRecipe(key, createBlade("freeze"));
+        
+        recipe.shape(
+            "BNB",
+            "NCN",
+            "BNB"
+        );
+        recipe.setIngredient('B', Material.BLUE_ICE);
+        recipe.setIngredient('N', Material.SNOWBALL);
+        recipe.setIngredient('C', new org.bukkit.inventory.RecipeChoice.ExactChoice(clockItem));
+        recipe.setGroup("time_weapons");
+        
+        Bukkit.addRecipe(recipe);
+        plugin.getLogger().info("Registered Freeze Time Blade recipe");
+    }
+
+    private static void registerBrakeBladeRecipe(Main plugin) {
+        // Brake Mace: Heavy materials in structured pattern around clock
+        NamespacedKey key = new NamespacedKey(plugin, "time_brake_blade_recipe");
+        Bukkit.removeRecipe(key);
+        
+        ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.BRAKE);
+        ShapedRecipe recipe = new ShapedRecipe(key, createBlade("brake"));
+        
+        recipe.shape(
+            "IRI",
+            "RCR",
+            "ARA"
+        );
+        recipe.setIngredient('I', Material.IRON_BLOCK);
+        recipe.setIngredient('R', Material.REDSTONE_BLOCK);
+        recipe.setIngredient('A', Material.ANVIL);
+        recipe.setIngredient('C', new org.bukkit.inventory.RecipeChoice.ExactChoice(clockItem));
+        recipe.setGroup("time_weapons");
+        
+        Bukkit.addRecipe(recipe);
+        plugin.getLogger().info("Registered Time Brake Mace recipe");
+    }
+
+    private static void registerSkipBladeRecipe(Main plugin) {
+        // Skip Blade: Golden/yellow materials in speed theme
+        NamespacedKey key = new NamespacedKey(plugin, "time_skip_blade_recipe");
+        Bukkit.removeRecipe(key);
+        
+        ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.SKIP);
+        ShapedRecipe recipe = new ShapedRecipe(key, createBlade("skip"));
+        
+        recipe.shape(
+            "GFG",
+            "FCF",
+            "GFG"
+        );
+        recipe.setIngredient('G', Material.GOLD_BLOCK);
+        recipe.setIngredient('F', Material.FEATHER);
+        recipe.setIngredient('C', new org.bukkit.inventory.RecipeChoice.ExactChoice(clockItem));
+        recipe.setGroup("time_weapons");
+        
+        Bukkit.addRecipe(recipe);
+        plugin.getLogger().info("Registered Time Skip Blade recipe");
+    }
+
+    private static void registerReverseBladeRecipe(Main plugin) {
+        // Reverse Blade: Amethyst and purple materials in otherworldly pattern
+        NamespacedKey key = new NamespacedKey(plugin, "time_reverse_blade_recipe");
+        Bukkit.removeRecipe(key);
+        
+        ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.REVERSE);
+        ShapedRecipe recipe = new ShapedRecipe(key, createBlade("reverse"));
+        
+        recipe.shape(
+            "AEA",
+            "ECE",
+            "AEA"
+        );
+        recipe.setIngredient('A', Material.AMETHYST_BLOCK);
+        recipe.setIngredient('E', Material.END_ROD);
+        recipe.setIngredient('C', new org.bukkit.inventory.RecipeChoice.ExactChoice(clockItem));
+        recipe.setGroup("time_weapons");
+        
+        Bukkit.addRecipe(recipe);
+        plugin.getLogger().info("Registered Time Reverse Blade recipe");
     }
 
     private static ItemStack namedItem(Material material, String name) {
@@ -217,7 +300,6 @@ public final class TimeBladeItems {
         private final String starName;
         private final String bladeName;
         private final Material bladeMaterial;
-        private final String recipeKey;
         private final List<String> lore;
 
         BladeType(String commandName, String starName, String bladeName, Material bladeMaterial, String recipeKey, List<String> lore) {
@@ -225,7 +307,6 @@ public final class TimeBladeItems {
             this.starName = starName;
             this.bladeName = bladeName;
             this.bladeMaterial = bladeMaterial;
-            this.recipeKey = recipeKey;
             this.lore = lore;
         }
 

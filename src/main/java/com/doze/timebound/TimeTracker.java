@@ -1,19 +1,16 @@
 package com.doze.timebound;
 
-import org.bukkit.Location;
-import org.bukkit.Material;
-
 import java.util.ArrayList;
 import java.util.List;
 
-public class TimeTracker {
+import org.bukkit.Location;
+import org.bukkit.Material;
 
-    private final Main plugin;
+public class TimeTracker {
 
     private final List<BlockRecord> records = new ArrayList<>();
 
     public TimeTracker(Main plugin) {
-        this.plugin = plugin;
     }
 
     public void record(Location loc, Material before, Material after) {
