@@ -52,17 +52,16 @@ public class TimeManager {
             e.teleport(past.location);
         }
     }
-    @SuppressWarnings("null")
     public void rewindHealth(LivingEntity e, int ticks) {
-        Deque<EntityState> list = entityHistory.get(e.getUniqueId());
-        if (list == null || list.isEmpty()) return;
+    Deque<EntityState> list = entityHistory.get(e.getUniqueId());
+    if (list == null || list.isEmpty()) return;
 
-        EntityState past = list.peekLast();
-        if (past != null) {
-            double maxHealth = e.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null
-                    ? e.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()
-                    : 20.0;
-            e.setHealth(Math.min(maxHealth, Math.max(1.0, past.health)));
+    EntityState past = list.peekLast();
+    if (past != null) {
+        var maxHealthAttr = e.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        double maxHealth = (maxHealthAttr != null) ? maxHealthAttr.getValue() : 20.0;
+        
+        e.setHealth(Math.min(maxHealth, Math.max(0.0, past.health)));
         }
     }
 
