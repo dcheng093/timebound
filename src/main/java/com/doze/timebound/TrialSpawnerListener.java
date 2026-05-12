@@ -17,7 +17,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
-
+@SuppressWarnings("null")
 public class TrialSpawnerListener implements Listener {
     private final Main plugin;
     private final Map<UUID, TrialSessionData> activeSessions = new HashMap<>();
