@@ -1,7 +1,12 @@
 package com.doze.timebound;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -9,10 +14,8 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 public class TimeBoundCommand implements CommandExecutor, TabCompleter {
     public TimeBoundCommand(TimeClockListener ignoredClockListener) {
@@ -38,15 +41,15 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
 
         if (sub.equals("generate")) {
             if (!(sender instanceof Player adminPlayer)) {
-                sender.sendMessage(ChatColor.RED + "Only players can run this command!");
+                sendColored(sender, NamedTextColor.RED, "Only players can run this command!");
                 return true;
             }
             if (!isAdmin(adminPlayer)) {
-                adminPlayer.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                sendColored(adminPlayer, NamedTextColor.RED, "You do not have permission to use this command.");
                 return true;
             }
             if (args.length < 2) {
-                adminPlayer.sendMessage(ChatColor.YELLOW + "Usage: /timebound generate <freeze|brake|reverse|skip|all>");
+                sendColored(adminPlayer, NamedTextColor.YELLOW, "Usage: /timebound generate <freeze|brake|reverse|skip|all>");
                 return true;
             }
 
@@ -58,7 +61,7 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
 
             ClockType clockType = ClockType.fromKey(target);
             if (clockType == null) {
-                adminPlayer.sendMessage(ChatColor.RED + "Unknown clock. Use freeze, brake, reverse, skip, or all.");
+                sendColored(adminPlayer, NamedTextColor.RED, "Unknown clock. Use freeze, brake, reverse, skip, or all.");
                 return true;
             }
             new TimeStructureManager(Main.getInstance()).generateSingle(adminPlayer, clockType);
@@ -67,21 +70,21 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
 
         if (sub.equals("locate")) {
             if (!(sender instanceof Player adminPlayer)) {
-                sender.sendMessage(ChatColor.RED + "Only players can run this command!");
+                sendColored(sender, NamedTextColor.RED, "Only players can run this command!");
                 return true;
             }
             if (!isAdmin(adminPlayer)) {
-                adminPlayer.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                sendColored(adminPlayer, NamedTextColor.RED, "You do not have permission to use this command.");
                 return true;
             }
             if (args.length < 2) {
-                adminPlayer.sendMessage(ChatColor.YELLOW + "Usage: /timebound locate <freeze|brake|reverse|skip>");
+                sendColored(adminPlayer, NamedTextColor.YELLOW, "Usage: /timebound locate <freeze|brake|reverse|skip>");
                 return true;
             }
 
             ClockType clockType = ClockType.fromKey(args[1].toLowerCase());
             if (clockType == null) {
-                adminPlayer.sendMessage(ChatColor.RED + "Unknown clock. Use freeze, brake, reverse, or skip.");
+                sendColored(adminPlayer, NamedTextColor.RED, "Unknown clock. Use freeze, brake, reverse, or skip.");
                 return true;
             }
             new TimeStructureManager(Main.getInstance()).locateStructure(adminPlayer, clockType);
@@ -89,27 +92,27 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
         }
 
         if (!(sender instanceof Player p)) {
-            sender.sendMessage(ChatColor.RED + "Players only for this subcommand.");
+            sendColored(sender, NamedTextColor.RED, "Players only for this subcommand.");
             return true;
         }
 
         if (sub.equals("give")) {
             if (!isAdmin(p)) {
-                p.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                sendColored(p, NamedTextColor.RED, "You do not have permission to use this command.");
                 return true;
             }
             if (args.length < 2) {
-                p.sendMessage(ChatColor.YELLOW + "Usage: /timebound give weapons <freeze|brake|reverse|skip>");
-                p.sendMessage(ChatColor.YELLOW + "Usage: /timebound give clocks <freeze|brake|reverse|skip>");
+                sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give weapons <freeze|brake|reverse|skip>");
+                sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give clocks <freeze|brake|reverse|skip>");
                 return true;
             }
             String itemType = args[1].toLowerCase();
             if (!itemType.equals("weapons") && !itemType.equals("clocks")) {
-                p.sendMessage(ChatColor.RED + "Use 'weapons' or 'clocks'.");
+                sendColored(p, NamedTextColor.RED, "Use 'weapons' or 'clocks'.");
                 return true;
             }
             if (args.length < 3) {
-                p.sendMessage(ChatColor.RED + "Usage: /timebound give " + itemType + " <freeze|brake|reverse|skip>");
+                sendColored(p, NamedTextColor.RED, "Usage: /timebound give " + itemType + " <freeze|brake|reverse|skip>");
                 return true;
             }
             if (itemType.equals("weapons")) {
@@ -122,50 +125,65 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
 
         if (sub.equals("spawnclock")) {
             if (!isAdmin(p)) {
-                p.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                sendColored(p, NamedTextColor.RED, "You do not have permission to use this command.");
                 return true;
             }
             if (args.length < 2) {
-                p.sendMessage(ChatColor.RED + "Usage: /timebound spawnclock <freeze|brake|reverse|skip>");
+                sendColored(p, NamedTextColor.RED, "Usage: /timebound spawnclock <freeze|brake|reverse|skip>");
                 return true;
             }
             ClockType clockType = ClockType.fromKey(args[1].toLowerCase());
             if (clockType == null) {
-                p.sendMessage(ChatColor.RED + "Unknown clock. Use freeze, brake, reverse, or skip.");
+                sendColored(p, NamedTextColor.RED, "Unknown clock. Use freeze, brake, reverse, or skip.");
                 return true;
             }
-            Main.getInstance().getClockListener().spawnClickableClock(p.getLocation().add(0, 1, 0), clockType);
-            p.sendMessage(ChatColor.GREEN + "Spawned a clickable " + clockType.displayName() + "!");
+            Main main = Main.getInstance();
+            if (main == null) {
+                sendColored(p, NamedTextColor.RED, "Unable to spawn the clock at this time.");
+                return true;
+            }
+            TimeClockListener clockListener = main.getClockListener();
+            if (clockListener == null) {
+                sendColored(p, NamedTextColor.RED, "Unable to spawn the clock at this time.");
+                return true;
+            }
+            Location targetLocation = p.getLocation();
+            if (targetLocation == null) {
+                sendColored(p, NamedTextColor.RED, "Unable to determine spawn location.");
+                return true;
+            }
+            clockListener.spawnClickableClock(targetLocation.add(0, 1, 0), clockType);
+            sendColored(p, NamedTextColor.GREEN, "Spawned a clickable " + clockType.displayName() + "!");
             return true;
         }
 
         if (sub.equals("cooldowns")) {
             if (!isAdmin(p)) {
-                p.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                sendColored(p, NamedTextColor.RED, "You do not have permission to use this command.");
                 return true;
             }
             Player target = args.length >= 2 ? Bukkit.getPlayer(args[1]) : p;
             if (target == null) {
-                p.sendMessage(ChatColor.RED + "Player not found.");
+                sendColored(p, NamedTextColor.RED, "Player not found.");
                 return true;
             }
             Main.getInstance().getListener().resetCooldowns(target);
-            p.sendMessage(ChatColor.GREEN + "Refreshed all cooldowns and charges for " + target.getName() + ".");
+            sendColored(p, NamedTextColor.GREEN, "Refreshed all cooldowns and charges for " + target.getName() + ".");
             return true;
         }
 
         if (sub.equals("clearstacks")) {
             if (!isAdmin(p)) {
-                p.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                sendColored(p, NamedTextColor.RED, "You do not have permission to use this command.");
                 return true;
             }
             Player target = args.length >= 2 ? Bukkit.getPlayer(args[1]) : p;
             if (target == null) {
-                p.sendMessage(ChatColor.RED + "Player not found.");
+                sendColored(p, NamedTextColor.RED, "Player not found.");
                 return true;
             }
             Main.getInstance().getListener().clearSkipStacks(target);
-            p.sendMessage(ChatColor.GREEN + "Cleared Time Skip stacks for " + target.getName() + ".");
+            sendColored(p, NamedTextColor.GREEN, "Cleared Time Skip stacks for " + target.getName() + ".");
             return true;
         }
 
@@ -176,44 +194,52 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
     private void giveWeapon(Player player, String type) {
         ClockType clockType = ClockType.fromKey(type);
         if (clockType == null) {
-            player.sendMessage(ChatColor.RED + "Unknown type. Use freeze, brake, reverse, or skip.");
+            sendColored(player, NamedTextColor.RED, "Unknown type. Use freeze, brake, reverse, or skip.");
             return;
         }
         ItemStack item = TimeBladeItems.createBlade(type);
         if (item == null) {
-            player.sendMessage(ChatColor.RED + "Failed to create weapon.");
+            sendColored(player, NamedTextColor.RED, "Failed to create weapon.");
             return;
         }
         player.getInventory().addItem(item);
-        player.sendMessage(ChatColor.GREEN + "Given: " + item.getItemMeta().getDisplayName());
+        Component name = item.getItemMeta().displayName();
+        if (name == null) name = Component.text(clockType.displayName(), NamedTextColor.GRAY);
+        player.sendMessage(Component.text("Given: ", NamedTextColor.GREEN).append(name));
     }
 
     private void giveClock(Player player, String type) {
         ClockType clockType = ClockType.fromKey(type);
         if (clockType == null) {
-            player.sendMessage(ChatColor.RED + "Unknown clock. Use freeze, brake, reverse, or skip.");
+            sendColored(player, NamedTextColor.RED, "Unknown clock. Use freeze, brake, reverse, or skip.");
             return;
         }
         ItemStack item = TimeClockItems.createClock(Main.getInstance(), clockType);
         player.getInventory().addItem(item);
-        player.sendMessage(ChatColor.GREEN + "Given: " + item.getItemMeta().getDisplayName());
+        Component name = item.getItemMeta().displayName();
+        if (name == null) name = Component.text(clockType.displayName(), NamedTextColor.GRAY);
+        player.sendMessage(Component.text("Given: ", NamedTextColor.GREEN).append(name));
     }
 
     private void sendUsage(CommandSender sender) {
-        sender.sendMessage(ChatColor.GOLD + "TimeBound commands:");
+        sender.sendMessage(Component.text("TimeBound commands:", NamedTextColor.GOLD));
         if (isAdmin(sender)) {
-            sender.sendMessage(ChatColor.YELLOW + "/timebound generate <freeze|brake|reverse|skip|all>" + ChatColor.GRAY + " - generate structure(s)");
-            sender.sendMessage(ChatColor.YELLOW + "/timebound locate <freeze|brake|reverse|skip>" + ChatColor.GRAY + " - locate a generated structure");
-            sender.sendMessage(ChatColor.YELLOW + "/timebound give weapons <freeze|brake|reverse|skip>" + ChatColor.GRAY + " - give a weapon");
-            sender.sendMessage(ChatColor.YELLOW + "/timebound give clocks <freeze|brake|reverse|skip>" + ChatColor.GRAY + " - give a clock");
-            sender.sendMessage(ChatColor.YELLOW + "/timebound spawnclock <type>" + ChatColor.GRAY + " - spawn a clickable clock");
-            sender.sendMessage(ChatColor.YELLOW + "/timebound cooldowns [player]" + ChatColor.GRAY + " - reset blade/clock cooldowns");
-            sender.sendMessage(ChatColor.YELLOW + "/timebound clearstacks [player]" + ChatColor.GRAY + " - clear Time Skip stacks");
+            sender.sendMessage(Component.text("/timebound generate <freeze|brake|reverse|skip|all>", NamedTextColor.YELLOW).append(Component.text(" - generate structure(s)", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/timebound locate <freeze|brake|reverse|skip>", NamedTextColor.YELLOW).append(Component.text(" - locate a generated structure", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/timebound give weapons <freeze|brake|reverse|skip>", NamedTextColor.YELLOW).append(Component.text(" - give a weapon", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/timebound give clocks <freeze|brake|reverse|skip>", NamedTextColor.YELLOW).append(Component.text(" - give a clock", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/timebound spawnclock <type>", NamedTextColor.YELLOW).append(Component.text(" - spawn a clickable clock", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/timebound cooldowns [player]", NamedTextColor.YELLOW).append(Component.text(" - reset blade/clock cooldowns", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/timebound clearstacks [player]", NamedTextColor.YELLOW).append(Component.text(" - clear Time Skip stacks", NamedTextColor.GRAY)));
         }
     }
 
     private boolean isAdmin(CommandSender sender) {
         return sender.hasPermission("timebound.admin") || sender.isOp();
+    }
+
+    private void sendColored(CommandSender sender, NamedTextColor color, String message) {
+        sender.sendMessage(Component.text(message, color));
     }
 
     @Override
@@ -278,6 +304,7 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 }
             }
         }
+        return Collections.emptyList();
     }
 
     private List<String> filter(List<String> options, String prefix) {

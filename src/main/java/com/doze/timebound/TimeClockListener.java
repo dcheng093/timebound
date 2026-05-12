@@ -1,7 +1,11 @@
 package com.doze.timebound;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.logging.Level;
+
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -22,10 +26,8 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
 
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 public class TimeClockListener implements Listener {
     private static final long CLOCK_COOLDOWN_MS = 60_000L;
@@ -33,7 +35,6 @@ public class TimeClockListener implements Listener {
 
     private final Main plugin;
     private final Map<UUID, Map<ClockType, Long>> cooldowns = new EnumMapBackedCooldowns();
-    private final Map<String, ClockRespawnData> clockRespawns = new HashMap<>();
 
     public TimeClockListener(Main plugin) {
         this.plugin = plugin;
@@ -121,8 +122,10 @@ public class TimeClockListener implements Listener {
                     
                     ItemStack clockItem = TimeClockItems.createClock(plugin, holoType);
                     p.getInventory().addItem(clockItem);
-                    p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
-
+                    Location playerLocation = p.getLocation();
+                    if (playerLocation != null) {
+                        p.playSound(playerLocation, Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
+                    }
                     display.getWorld().spawnParticle(Particle.CLOUD, display.getLocation().add(0, 0.5, 0), 15, 0.2, 0.2, 0.2, 0.05);
                     
                     Location displayLoc = display.getLocation();
@@ -167,7 +170,10 @@ public class TimeClockListener implements Listener {
 
         if (ok) {
             setCooldown(player.getUniqueId(), type, System.currentTimeMillis() + CLOCK_COOLDOWN_MS);
-            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 2.0f);
+            Location playerLocation = player.getLocation();
+            if (playerLocation != null) {
+                player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 2.0f);
+            }
         }
     }
 
@@ -191,13 +197,19 @@ public class TimeClockListener implements Listener {
 
     private boolean useSkipClock(Player player) {
         player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 100, 2, false, true, true));
-        player.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, player.getLocation().add(0, 1.0, 0), 35, 0.4, 0.7, 0.4, 0.1);
+        Location playerLocation = player.getLocation();
+        if (playerLocation != null) {
+            player.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, playerLocation.add(0, 1.0, 0), 35, 0.4, 0.7, 0.4, 0.1);
+        }
         return true;
     }
 
     private boolean useReverseClock(Player player) {
         plugin.getTimeManager().rewindHealth(player, 100);
-        player.getWorld().spawnParticle(Particle.REVERSE_PORTAL, player.getLocation().add(0, 1.0, 0), 40, 0.5, 0.7, 0.5, 0.02);
+        Location playerLocation = player.getLocation();
+        if (playerLocation != null) {
+            player.getWorld().spawnParticle(Particle.REVERSE_PORTAL, playerLocation.add(0, 1.0, 0), 40, 0.5, 0.7, 0.5, 0.02);
+        }
         return true;
     }
 
@@ -229,21 +241,25 @@ public class TimeClockListener implements Listener {
     }
 
     private boolean playerHasClock(Player player, ClockType type) {
-        for (ItemStack item : player.getInventory().getContents()) {
-            if (TimeClockItems.getClockType(plugin, item) == type) {
-                return true;
+        ItemStack[] contents = player.getInventory().getContents();
+        if (contents != null) {
+            for (ItemStack item : contents) {
+                if (TimeClockItems.getClockType(plugin, item) == type) {
+                    return true;
+                }
             }
         }
         return false;
     }
 
     private void scheduleClockRespawn(Location originalLocation, ClockType type) {
-        String key = originalLocation.getBlockX() + "," + originalLocation.getBlockY() + "," + originalLocation.getBlockZ() + "," + type.key();
-        
         Bukkit.getScheduler().scheduleSyncDelayedTask(plugin, () -> {
             plugin.getClockListener().spawnClickableClock(originalLocation, type);
-            Bukkit.broadcastMessage(Component.text(type.displayName() + " has respawned!", type.color()));
-            plugin.getLogger().info(type.displayName() + " respawned at " + originalLocation.getBlockX() + ", " + originalLocation.getBlockY() + ", " + originalLocation.getBlockZ());
+            Component message = Component.text(type.displayName() + " has respawned!", type.color());
+            for (Player target : Bukkit.getOnlinePlayers()) {
+                target.sendMessage(message);
+            }
+            plugin.getLogger().log(Level.INFO, "{0} respawned at {1}, {2}, {3}", new Object[]{type.displayName(), originalLocation.getBlockX(), originalLocation.getBlockY(), originalLocation.getBlockZ()});
         }, CLOCK_RESPAWN_DELAY_MS / 50);
     }
 }

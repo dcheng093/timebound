@@ -29,21 +29,26 @@ public class Main extends JavaPlugin {
         getServer().getPluginManager().registerEvents(chunkyMonitor, this);
         getServer().getPluginManager().registerEvents(new TrialSpawnerListener(this), this);
 
-        if (getCommand("timebound") != null) {
+        var timeboundCommand = getCommand("timebound");
+        if (timeboundCommand != null) {
             TimeBoundCommand command = new TimeBoundCommand(clockListener);
-            getCommand("timebound").setExecutor(command);
-            getCommand("timebound").setTabCompleter(command);
+            timeboundCommand.setExecutor(command);
+            timeboundCommand.setTabCompleter(command);
             getLogger().info("Registered /timebound command executor and tab completer.");
         } else {
             getLogger().warning("timebound command missing in plugin.yml");
         }
-        if (getCommand("trust") != null) {
+
+        var trustCommand = getCommand("trust");
+        if (trustCommand != null) {
             TrustManager trustManager = new TrustManager();
-            getCommand("trust").setExecutor(trustManager);
-            getCommand("trust").setTabCompleter(trustManager);
-            if (getCommand("untrust") != null) {
-                getCommand("untrust").setExecutor(trustManager);
-                getCommand("untrust").setTabCompleter(trustManager);
+            trustCommand.setExecutor(trustManager);
+            trustCommand.setTabCompleter(trustManager);
+
+            var untrustCommand = getCommand("untrust");
+            if (untrustCommand != null) {
+                untrustCommand.setExecutor(trustManager);
+                untrustCommand.setTabCompleter(trustManager);
             }
         }
         Bukkit.getScheduler().runTaskTimer(this, () -> {
@@ -118,7 +123,7 @@ public class Main extends JavaPlugin {
                 }
             }
             Bukkit.addRecipe(recipe);
-            getLogger().info("Registered recipe for " + type.displayName());
+            getLogger().info(() -> "Registered recipe for " + type.displayName());
         }
     }
     public NamespacedKey key(String keyName) {

@@ -1,19 +1,18 @@
 package com.doze.timebound;
 
-import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.extent.clipboard.Clipboard;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
-import com.sk89q.worldedit.function.operation.Operation;
-import com.sk89q.worldedit.function.operation.Operations;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.session.ClipboardHolder;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Level;
+
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -27,16 +26,21 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.BiomeSearchResult;
 import org.bukkit.util.StructureSearchResult;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
+import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.WorldEditException;
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
+import com.sk89q.worldedit.function.operation.Operation;
+import com.sk89q.worldedit.function.operation.Operations;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.session.ClipboardHolder;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 public class TimeStructureManager {
 
@@ -44,7 +48,6 @@ public class TimeStructureManager {
     private static final int SEARCH_RADIUS = 15000;
     private static final int MAX_PLACEMENT_ATTEMPTS = 8;
     private static final long CHUNKY_WAIT_MS = 120000L;
-    private static final long CHUNKY_CHECK_INTERVAL_MS = 3000L;
 
     private final Main plugin;
     private final File schematicsFolder;
@@ -70,7 +73,7 @@ public class TimeStructureManager {
             ArmorStand marker = findStructureMarker(type);
             if (marker == null) {
                 String message = "No " + type.displayName() + " structure has been generated yet.";
-                player.sendMessage(ChatColor.RED + message);
+                player.sendMessage(Component.text(message, NamedTextColor.RED));
                 plugin.getLogger().info(message);
                 return;
             }
@@ -79,7 +82,7 @@ public class TimeStructureManager {
             String worldName = location.getWorld().getName();
             String result = String.format("%s structure found in world '%s' at %d, %d, %d.", type.displayName(), worldName, location.getBlockX(), location.getBlockY(), location.getBlockZ());
             plugin.getLogger().info(result);
-            player.sendMessage(ChatColor.GREEN + result);
+            player.sendMessage(Component.text(result, NamedTextColor.GREEN));
         });
     }
 
@@ -93,7 +96,7 @@ public class TimeStructureManager {
             }
 
             Location origin = admin.getLocation();
-            World world = origin.getWorld();
+            World world = admin.getWorld();
             Map<ClockType, Location> candidates = new HashMap<>();
 
             for (ClockType type : types) {
@@ -121,19 +124,16 @@ public class TimeStructureManager {
         }
 
         progress(admin, "Detected /chunky start. Waiting for Chunky generation to finish before searching...");
-        long start = System.currentTimeMillis();
 
-        while (System.currentTimeMillis() - start < CHUNKY_WAIT_MS) {
-            if (!monitor.isChunkyActive()) {
-                progress(admin, "Chunky generation appears to have settled. Continuing structure search.");
-                return true;
-            }
-            try {
-                Thread.sleep(CHUNKY_CHECK_INTERVAL_MS);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-                break;
-            }
+        if (!monitor.isChunkyActive()) {
+            progress(admin, "Chunky generation appears to have settled. Continuing structure search.");
+            return true;
+        }
+
+        try {
+            Thread.sleep(CHUNKY_WAIT_MS);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
         }
 
         return !monitor.isChunkyActive();
@@ -164,7 +164,7 @@ public class TimeStructureManager {
             }
             case SKIP -> {
                 progress(origin, "Searching for a Desert biome...");
-                Location skipLocation = searchNearestBiome(origin, Biome.DESERT, Biome.DESERT_HILLS, Biome.DESERT_LAKES);
+                Location skipLocation = searchNearestBiome(origin, Biome.DESERT);
                 if (skipLocation == null) {
                     progress(origin, "No Desert biome found within " + SEARCH_RADIUS + " blocks.");
                     return null;
@@ -230,7 +230,7 @@ public class TimeStructureManager {
             return;
         }
 
-        Location pasteOrigin = calculatePasteOrigin(type, searchLocation, clipboard);
+        Location pasteOrigin = calculatePasteOrigin(type, searchLocation);
         Location finalOrigin = findValidPasteOrigin(type, pasteOrigin, clipboard);
         if (finalOrigin == null) {
             error(admin, "Could not find a clean placement for " + type.displayName() + ". Generation aborted.");
@@ -259,12 +259,12 @@ public class TimeStructureManager {
         try (ClipboardReader reader = format.getReader(new FileInputStream(file))) {
             return reader.read();
         } catch (IOException e) {
-            plugin.getLogger().warning("Failed to read schematic " + file.getName() + ": " + e.getMessage());
+            plugin.getLogger().log(Level.WARNING, "Failed to read schematic " + file.getName(), e);
             return null;
         }
     }
 
-    private Location calculatePasteOrigin(ClockType type, Location searchLocation, Clipboard clipboard) {
+    private Location calculatePasteOrigin(ClockType type, Location searchLocation) {
         Location origin = searchLocation.clone();
         if (type == ClockType.BRAKE) {
             return origin.add(0, -2, 0);
@@ -319,11 +319,10 @@ public class TimeStructureManager {
     private boolean verifyAirVolume(Location origin, Clipboard clipboard) {
         BlockVector3 min = clipboard.getMinimumPoint();
         BlockVector3 max = clipboard.getMaximumPoint();
-        World world = origin.getWorld();
 
-        for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
-            for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
-                for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
+        for (int x = min.x(); x <= max.x(); x++) {
+            for (int y = min.y(); y <= max.y(); y++) {
+                for (int z = min.z(); z <= max.z(); z++) {
                     Location check = origin.clone().add(x, y, z);
                     if (!check.getBlock().isEmpty()) {
                         return false;
@@ -342,8 +341,8 @@ public class TimeStructureManager {
         int total = 0;
         int goodCount = 0;
 
-        for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
-            for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
+        for (int x = min.x(); x <= max.x(); x++) {
+            for (int z = min.z(); z <= max.z(); z++) {
                 Location floor = new Location(world, origin.getBlockX() + x, groundY, origin.getBlockZ() + z);
                 Material below = floor.getBlock().getType();
                 if (below.isSolid() && below != Material.COBWEB && below != Material.AIR && below != Material.WATER && below != Material.LAVA) {
@@ -364,14 +363,14 @@ public class TimeStructureManager {
         int safeCount = 0;
         int attachmentPoints = 0;
 
-        for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
-            for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
+        for (int x = min.x(); x <= max.x(); x++) {
+            for (int z = min.z(); z <= max.z(); z++) {
                 Location check = new Location(world, origin.getBlockX() + x, origin.getBlockY(), origin.getBlockZ() + z);
                 Material type = check.getBlock().getType();
                 if (type.isAir() || (type.isSolid() && type != Material.COBWEB && type != Material.WATER && type != Material.LAVA)) {
                     safeCount++;
                 }
-                if (x == min.getBlockX() || x == max.getBlockX() || z == min.getBlockZ() || z == max.getBlockZ()) {
+                if (x == min.x() || x == max.x() || z == min.z() || z == max.z()) {
                     if (hasAdjacentSolidSupport(check)) {
                         attachmentPoints++;
                     }
@@ -379,8 +378,8 @@ public class TimeStructureManager {
                 total++;
             }
         }
-        int width = max.getBlockX() - min.getBlockX() + 1;
-        int depth = max.getBlockZ() - min.getBlockZ() + 1;
+        int width = max.x() - min.x() + 1;
+        int depth = max.z() - min.z() + 1;
         int requiredAttachments = Math.max(1, (width + depth) / 4);
         return total > 0 && safeCount >= Math.max(1, total / 4) && attachmentPoints >= requiredAttachments;
     }
@@ -389,13 +388,13 @@ public class TimeStructureManager {
         try (EditSession editSession = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(origin.getWorld()))) {
             Operation operation = new ClipboardHolder(clipboard)
                     .createPaste(editSession)
-                    .to(BlockVector3.at(origin.getBlockX(), origin.getBlockY(), origin.getBlockZ()))
+                            .to(BlockVector3.at(origin.getBlockX(), origin.getBlockY(), origin.getBlockZ()))
                     .ignoreAirBlocks(true)
                     .build();
             Operations.complete(operation);
             return true;
         } catch (WorldEditException e) {
-            plugin.getLogger().warning("WorldEdit paste failed: " + e.getMessage());
+            plugin.getLogger().log(Level.WARNING, "WorldEdit paste failed", e);
             return false;
         }
     }
@@ -445,7 +444,7 @@ public class TimeStructureManager {
 
     private boolean hasAdjacentSolidSupport(Location loc) {
         for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST, BlockFace.DOWN}) {
-            if (loc.getAdjacentFace(face).getBlock().getType().isSolid()) {
+            if (loc.getBlock().getRelative(face).getType().isSolid()) {
                 return true;
             }
         }
@@ -461,11 +460,10 @@ public class TimeStructureManager {
     private Location findFirstBlock(Location origin, Clipboard clipboard, Material target) {
         BlockVector3 min = clipboard.getMinimumPoint();
         BlockVector3 max = clipboard.getMaximumPoint();
-        World world = origin.getWorld();
 
-        for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
-            for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
-                for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
+        for (int x = min.x(); x <= max.x(); x++) {
+            for (int y = min.y(); y <= max.y(); y++) {
+                for (int z = min.z(); z <= max.z(); z++) {
                     Location check = origin.clone().add(x, y, z);
                     if (check.getBlock().getType() == target) {
                         return check;
@@ -516,7 +514,7 @@ public class TimeStructureManager {
 
     private void progress(Player admin, String message) {
         plugin.getLogger().info(message);
-        Bukkit.getScheduler().runTask(plugin, () -> admin.sendMessage(ChatColor.YELLOW + message));
+        Bukkit.getScheduler().runTask(plugin, () -> admin.sendMessage(Component.text(message, NamedTextColor.YELLOW)));
     }
 
     private void progress(Location origin, String message) {
@@ -524,7 +522,7 @@ public class TimeStructureManager {
         Bukkit.getScheduler().runTask(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (player.getWorld().equals(origin.getWorld())) {
-                    player.sendMessage(ChatColor.GRAY + message);
+                    player.sendMessage(Component.text(message, NamedTextColor.GRAY));
                 }
             }
         });
@@ -532,7 +530,7 @@ public class TimeStructureManager {
 
     private void error(Player admin, String message) {
         plugin.getLogger().warning(message);
-        Bukkit.getScheduler().runTask(plugin, () -> admin.sendMessage(ChatColor.RED + message));
+        Bukkit.getScheduler().runTask(plugin, () -> admin.sendMessage(Component.text(message, NamedTextColor.RED)));
     }
 
     private String formatLoc(Location loc) {

@@ -1,7 +1,20 @@
 package com.doze.timebound;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -15,7 +28,6 @@ import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
-import org.bukkit.FluidCollisionMode;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.ItemDisplay;
@@ -33,9 +45,9 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
-import org.bukkit.event.player.PlayerItemHeldEvent;
-import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemDamageEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
@@ -48,19 +60,10 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
-import java.util.ArrayDeque;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
+@SuppressWarnings("null")
 public class TimeBoundListener implements Listener {
 
     private static final int PASSIVE_CHANCE = 5;
@@ -107,8 +110,11 @@ public class TimeBoundListener implements Listener {
                         charges++;
                         skipCharges.put(id, charges);
                         skipLastRegen.put(id, now);
-                        player.sendMessage(ChatColor.YELLOW + "Time Skip Charge Restored (" + charges + "/3)");
-                        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.2f);
+                        sendColored(player, NamedTextColor.YELLOW, "Time Skip Charge Restored (" + charges + "/3)");
+                        Location playerLocation = player.getLocation();
+                        if (playerLocation != null) {
+                            player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.2f);
+                        }
                     }
                 }
 
@@ -128,9 +134,9 @@ public class TimeBoundListener implements Listener {
                         skipLastHitTime.put(id, now);
 
                         if (stacks - 1 > 0) {
-                            player.sendMessage(ChatColor.RED + "⚡ Stacks Decaying: " + ChatColor.GOLD + (stacks - 1) + "/9");
+                            sendColored(player, NamedTextColor.RED, "⚡ Stacks Decaying: " + (stacks - 1) + "/9");
                         } else {
-                            player.sendMessage(ChatColor.DARK_RED + "⚡ Time Skip Stacks Lost!");
+                            sendColored(player, NamedTextColor.DARK_RED, "⚡ Time Skip Stacks Lost!");
                         }
                     }
                 }
@@ -173,7 +179,7 @@ public class TimeBoundListener implements Listener {
         skipStacks.remove(id);
         skipLastHitTime.remove(id);
         applySkipStackEffects(player, 0);
-        player.sendMessage(ChatColor.DARK_RED + "⚡ Stacks Cleared!");
+        sendColored(player, NamedTextColor.DARK_RED, "⚡ Stacks Cleared!");
     }
 
     @EventHandler
@@ -222,8 +228,11 @@ public class TimeBoundListener implements Listener {
         long readyAt = abilityCooldowns.getOrDefault(key, 0L);
         if (readyAt > now) {
             long secondsLeft = (long) Math.ceil((readyAt - now) / 1000.0);
-            player.sendMessage(ChatColor.RED + blade.displayName + " ability is on cooldown for " + secondsLeft + "s.");
-            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            sendColored(player, NamedTextColor.RED, blade.displayName + " ability is on cooldown for " + secondsLeft + "s.");
+            Location playerLocation = player.getLocation();
+            if (playerLocation != null) {
+                player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            }
             return false;
         }
 
@@ -240,15 +249,21 @@ public class TimeBoundListener implements Listener {
         String key = chargeKey(player, blade);
         int charge = ultCharges.getOrDefault(key, 0);
         if (charge < ULT_CHARGE_REQUIRED) {
-            player.sendMessage(ChatColor.RED + blade.displayName + " ult is not charged. " + charge + "/" + ULT_CHARGE_REQUIRED + " player kills.");
+            sendColored(player, NamedTextColor.RED, blade.displayName + " ult is not charged. " + charge + "/" + ULT_CHARGE_REQUIRED + " player kills.");
             updateUltBar(player, blade);
-            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            Location playerLocation = player.getLocation();
+            if (playerLocation != null) {
+                player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            }
             return false;
         }
 
         ultCharges.put(key, 0);
         updateUltBar(player, blade);
-        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.2f);
+        Location playerLocation = player.getLocation();
+        if (playerLocation != null) {
+            player.playSound(playerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.2f);
+        }
         return true;
     }
 
@@ -260,7 +275,7 @@ public class TimeBoundListener implements Listener {
         }
 
         if (target instanceof Player p && TrustManager.isTrusted(player, p)) {
-            player.sendMessage(ChatColor.AQUA + "You cannot freeze a trusted player!");
+            sendColored(player, NamedTextColor.AQUA, "You cannot freeze a trusted player!");
             return false;
         }
 
@@ -327,7 +342,7 @@ public class TimeBoundListener implements Listener {
         }
 
         if (target instanceof Player p && TrustManager.isTrusted(player, p)) {
-            player.sendMessage(ChatColor.AQUA + "You cannot brake a trusted player!");
+            sendColored(player, NamedTextColor.AQUA, "You cannot brake a trusted player!");
             return false;
         }
 
@@ -352,19 +367,21 @@ public class TimeBoundListener implements Listener {
     private boolean dashForward(Player player) {
         UUID id = player.getUniqueId();
         long now = System.currentTimeMillis();
+        Location playerLocation = player.getLocation();
+        if (playerLocation == null) return false;
 
         long nextAllowed = skipInternalCooldowns.getOrDefault(id, 0L);
         if (now < nextAllowed) {
             long left = (long) Math.ceil((nextAllowed - now) / 1000.0);
-            player.sendMessage(ChatColor.RED + "Time Skip ability is on cooldown for " + left + "s.");
-            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            sendColored(player, NamedTextColor.RED, "Time Skip ability is on cooldown for " + left + "s.");
+            player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
             return false;
         }
 
         int charges = skipCharges.getOrDefault(id, 3);
         if (charges <= 0) {
-            player.sendMessage(ChatColor.RED + "No Time Skip charges left! Regenerating...");
-            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            sendColored(player, NamedTextColor.RED, "No Time Skip charges left! Regenerating...");
+            player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
             return false;
         }
 
@@ -375,27 +392,27 @@ public class TimeBoundListener implements Listener {
         double dist = ray != null && ray.getHitBlock() != null ? player.getEyeLocation().toVector().distance(ray.getHitPosition()) : maxDistance;
 
         if (dist < 1.5) {
-            player.sendMessage(ChatColor.RED + "Path is blocked!");
+            sendColored(player, NamedTextColor.RED, "Path is blocked!");
             return false;
         }
 
-        Location target = player.getLocation().clone().add(dir.multiply(dist - 0.5));
-        target.setYaw(player.getLocation().getYaw());
-        target.setPitch(player.getLocation().getPitch());
+        Location target = playerLocation.clone().add(dir.multiply(dist - 0.5));
+        target.setYaw(playerLocation.getYaw());
+        target.setPitch(playerLocation.getPitch());
 
         if (!isSafeDashLocation(target)) {
             Location up = target.clone().add(0, 1, 0);
             if (isSafeDashLocation(up)) {
                 target = up;
             } else {
-                player.sendMessage(ChatColor.RED + "No safe opening to teleport to!");
-                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                sendColored(player, NamedTextColor.RED, "No safe opening to teleport to!");
+                player.playSound(playerLocation, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                 return false;
             }
         }
 
-        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().clone().add(0, 1.0, 0), 50, 0.5, 1.0, 0.5, 0.1);
-        player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
+        player.getWorld().spawnParticle(Particle.PORTAL, playerLocation.clone().add(0, 1.0, 0), 50, 0.5, 1.0, 0.5, 0.1);
+        player.playSound(playerLocation, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
 
         player.teleport(target);
 
@@ -417,10 +434,13 @@ public class TimeBoundListener implements Listener {
         reverseAbsorbUntil.put(id, System.currentTimeMillis() + 5000);
         StarTimerManager.startTimer(plugin, player, "Reverse Absorb", 5);
         showVictimTimer(player, "Reverse Absorb", 5, BarColor.PURPLE);
-        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 55, 0.7, 0.9, 0.7, 0.12);
-        player.getWorld().spawnParticle(Particle.WITCH, player.getLocation().add(0, 1.0, 0), 25, 0.4, 0.7, 0.4, 0.02);
-        player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.8f, 1.0f);
-        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 0.6f);
+        Location playerLocation = player.getLocation();
+        if (playerLocation != null) {
+            player.getWorld().spawnParticle(Particle.PORTAL, playerLocation.add(0, 1.0, 0), 55, 0.7, 0.9, 0.7, 0.12);
+            player.getWorld().spawnParticle(Particle.WITCH, playerLocation.add(0, 1.0, 0), 25, 0.4, 0.7, 0.4, 0.02);
+            player.playSound(playerLocation, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.8f, 1.0f);
+            player.playSound(playerLocation, Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 0.6f);
+        }
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> releaseAbsorbedDamage(player), 100L);
         return true;
@@ -584,9 +604,9 @@ public class TimeBoundListener implements Listener {
             applySkipStackEffects(player, stacks - 1);
 
             if (stacks - 1 > 0) {
-                player.sendMessage(ChatColor.RED + "⚡ Stacks Lowered: " + ChatColor.GOLD + (stacks - 1) + "/9");
+                sendColored(player, NamedTextColor.RED, "⚡ Stacks Lowered: " + (stacks - 1) + "/9");
             } else {
-                player.sendMessage(ChatColor.DARK_RED + "⚡ Time Skip Stacks Lost!");
+                sendColored(player, NamedTextColor.DARK_RED, "⚡ Time Skip Stacks Lost!");
             }
         }
     }
@@ -612,9 +632,9 @@ public class TimeBoundListener implements Listener {
         }
 
         switch (blade) {
-            case FREEZE -> applyFreezePassive(attacker, victim, event);
+            case FREEZE -> applyFreezePassive(victim, event);
             case BRAKE -> applyBrakePassive(victim);
-            case SKIP -> applySkipPassive(attacker, event);
+            case SKIP -> applySkipPassive(attacker);
             case REVERSE -> applyReversePassive(attacker, victim);
         }
     }
@@ -642,11 +662,17 @@ public class TimeBoundListener implements Listener {
         updateUltBar(killer, blade);
 
         if (charge >= ULT_CHARGE_REQUIRED) {
-            killer.sendMessage(ChatColor.GREEN + blade.displayName + " ult is fully charged.");
-            killer.playSound(killer.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.5f);
-            killer.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, killer.getLocation().add(0, 1.0, 0), 24, 0.4, 0.6, 0.4, 0.02);
+            sendColored(killer, NamedTextColor.GREEN, blade.displayName + " ult is fully charged.");
+            Location killerLocation = killer.getLocation();
+            if (killerLocation != null) {
+                killer.playSound(killerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.5f);
+                killer.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, killerLocation.add(0, 1.0, 0), 24, 0.4, 0.6, 0.4, 0.02);
+            }
         } else {
-            killer.playSound(killer.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.45f, 1.0f + charge * 0.12f);
+            Location killerLocation = killer.getLocation();
+            if (killerLocation != null) {
+                killer.playSound(killerLocation, Sound.BLOCK_NOTE_BLOCK_PLING, 0.45f, 1.0f + charge * 0.12f);
+            }
         }
     }
 
@@ -781,16 +807,16 @@ public class TimeBoundListener implements Listener {
         plugin.getTimeManager().recordBlock(event.getBlock().getLocation(), Material.AIR, event.getBlock().getType());
     }
 
-    private void applyFreezePassive(Player attacker, LivingEntity victim, EntityDamageByEntityEvent event) {
+    private void applyFreezePassive(LivingEntity victim, EntityDamageByEntityEvent event) {
         if (!rollPassive()) return;
 
-        applyPowderSnowPassive(attacker, victim);
+        applyPowderSnowPassive(victim);
         victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, FREEZE_PASSIVE_TICKS, 9, false, true, true));
         event.setDamage(event.getDamage() + Math.max(1.0, victim.getFreezeTicks() / 80.0));
         victim.getWorld().playSound(victim.getLocation(), Sound.BLOCK_POWDER_SNOW_BREAK, 0.8f, 1.1f);
     }
 
-    private void applyPowderSnowPassive(Player attacker, LivingEntity victim) {
+    private void applyPowderSnowPassive(LivingEntity victim) {
         victim.setFreezeTicks(victim.getMaxFreezeTicks() + FREEZE_PASSIVE_TICKS);
 
         keepPowderSnowOverlay(victim, FREEZE_PASSIVE_TICKS, false);
@@ -825,7 +851,7 @@ public class TimeBoundListener implements Listener {
         victim.getWorld().playSound(victim.getLocation(), Sound.BLOCK_CHAIN_PLACE, 0.7f, 0.55f);
     }
 
-    private void applySkipPassive(Player attacker, EntityDamageByEntityEvent event) {
+    private void applySkipPassive(Player attacker) {
         UUID id = attacker.getUniqueId();
         int currentStacks = skipStacks.getOrDefault(id, 0);
 
@@ -833,11 +859,14 @@ public class TimeBoundListener implements Listener {
         skipStacks.put(id, stacks);
         skipLastHitTime.put(id, System.currentTimeMillis());
 
-        attacker.sendMessage(ChatColor.YELLOW + "⚡ Time Skip Stacks: " + ChatColor.GOLD + stacks + "/9");
+        sendColored(attacker, NamedTextColor.YELLOW, "⚡ Time Skip Stacks: " + stacks + "/9");
 
         applySkipStackEffects(attacker, stacks);
-        attacker.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, attacker.getLocation().add(0, 1.0, 0), 8 + stacks * 4, 0.3, 0.4, 0.3, 0.04);
-        attacker.playSound(attacker.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.45f, 1.0f + stacks * 0.2f);
+        Location attackerLocation = attacker.getLocation();
+        if (attackerLocation != null) {
+            attacker.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, attackerLocation.add(0, 1.0, 0), 8 + stacks * 4, 0.3, 0.4, 0.3, 0.04);
+            attacker.playSound(attackerLocation, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.45f, 1.0f + stacks * 0.2f);
+        }
     }
 
     private void applySkipStackEffects(Player player, int stacks) {
@@ -879,15 +908,21 @@ public class TimeBoundListener implements Listener {
         if (!rollPassive()) return;
 
         plugin.getTimeManager().rewindHealth(attacker, 100);
-        attacker.getWorld().spawnParticle(Particle.HEART, attacker.getLocation().add(0, 1.5, 0), 10, 0.5, 0.5, 0.5, 0.1);
-        attacker.playSound(attacker.getLocation(), Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.8f, 1.2f);
-        attacker.sendMessage(ChatColor.LIGHT_PURPLE + "Your health was reversed to 5 seconds ago!");
+        Location attackerLocation = attacker.getLocation();
+        if (attackerLocation != null) {
+            attacker.getWorld().spawnParticle(Particle.HEART, attackerLocation.add(0, 1.5, 0), 10, 0.5, 0.5, 0.5, 0.1);
+            attacker.playSound(attackerLocation, Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.8f, 1.2f);
+        }
+        sendColored(attacker, NamedTextColor.LIGHT_PURPLE, "Your health was reversed to 5 seconds ago!");
 
         if (victim instanceof Player player) {
             reversedControlsUntil.put(player.getUniqueId(), System.currentTimeMillis() + REVERSED_CONTROLS_TICKS * 50L);
             showVictimTimer(player, "Controls Reversed", REVERSED_CONTROLS_TICKS / 20, BarColor.PURPLE);
-            player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 28, 0.5, 0.8, 0.5, 0.1);
-            player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 0.6f);
+            Location playerLocation = player.getLocation();
+            if (playerLocation != null) {
+                player.getWorld().spawnParticle(Particle.PORTAL, playerLocation.add(0, 1.0, 0), 28, 0.5, 0.8, 0.5, 0.1);
+                player.playSound(playerLocation, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 0.6f);
+            }
         }
     }
 
@@ -1124,7 +1159,7 @@ public class TimeBoundListener implements Listener {
 
         if (mainHandBlade != null && offHandBlade != null) {
             event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "You cannot hold Time weapons in both hands.");
+            sendColored(player, NamedTextColor.RED, "You cannot hold Time weapons in both hands.");
             return;
         }
 
@@ -1138,7 +1173,7 @@ public class TimeBoundListener implements Listener {
             Bukkit.getScheduler().runTask(plugin, () -> moveTimeWeaponToMainHand(player, event.getMainHandItem()));
         } else if (offHandBlade != null) {
             event.setCancelled(true);
-            ItemStack weapon = event.getOffHandItem() == null ? null : event.getOffHandItem().clone();
+            ItemStack weapon = event.getOffHandItem().clone();
             moveTimeWeaponToMainHand(player, weapon);
             if (player.isSneaking()) {
                 useUlt(player, offHandBlade);
@@ -1192,6 +1227,10 @@ public class TimeBoundListener implements Listener {
 
     private String chargeKey(Player player, Blade blade) {
         return player.getUniqueId() + ":" + blade.name();
+    }
+
+    private void sendColored(Player player, NamedTextColor color, String message) {
+        player.sendMessage(Component.text(message, color));
     }
 
     private void refreshHeldUltMeters() {
@@ -1257,13 +1296,13 @@ public class TimeBoundListener implements Listener {
 
         if (charges >= 3) {
             bar.setProgress(1.0);
-            bar.setTitle(ChatColor.YELLOW + "Time Skip: 3/3 Charges");
+            bar.setTitle(Component.text("Time Skip: 3/3 Charges", NamedTextColor.YELLOW).toString());
         } else {
             long elapsed = now - lastRegen;
             long remaining = 10000 - elapsed;
             double progress = Math.max(0.0, Math.min(1.0, (double) elapsed / 10000.0));
             bar.setProgress(progress);
-            bar.setTitle(ChatColor.YELLOW + "Time Skip: " + charges + "/3 (Next in " + (long) Math.ceil(remaining / 1000.0) + "s)");
+            bar.setTitle(Component.text("Time Skip: " + charges + "/3 (Next in " + (long) Math.ceil(remaining / 1000.0) + "s)", NamedTextColor.YELLOW).toString());
         }
         bar.setVisible(true);
     }
@@ -1331,7 +1370,7 @@ public class TimeBoundListener implements Listener {
             player.getWorld().dropItemNaturally(player.getLocation(), leftover);
         }
 
-        player.sendMessage(ChatColor.RED + "You cannot hold Time weapons in both hands. The offhand item was moved.");
+        sendColored(player, NamedTextColor.RED, "You cannot hold Time weapons in both hands. The offhand item was moved.");
         
         enforceSingleClockPerType(player);
     }
@@ -1347,7 +1386,7 @@ public class TimeBoundListener implements Listener {
                 if (count > 0) {
                     player.getWorld().dropItemNaturally(player.getLocation(), item);
                     player.getInventory().setItem(i, null);
-                    player.sendMessage(ChatColor.RED + "You can only hold one " + type.displayName() + " at a time. The extra was dropped.");
+                    sendColored(player, NamedTextColor.RED, "You can only hold one " + type.displayName() + " at a time. The extra was dropped.");
                 } else {
                     clockCount.put(type, 1);
                 }
