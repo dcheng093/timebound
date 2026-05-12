@@ -17,7 +17,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
-@SuppressWarnings("null")
+
 public class TrialSpawnerListener implements Listener {
     private final Main plugin;
     private final Map<UUID, TrialSessionData> activeSessions = new HashMap<>();
@@ -38,7 +38,7 @@ public class TrialSpawnerListener implements Listener {
             try {
                 org.bukkit.entity.ArmorStand brakeLoc = findBrakeClockMarker();
                 
-                if (brakeLoc != null && brakeLoc.getLocation() != null && 
+                if (brakeLoc != null &&  
                     player.getLocation().distance(brakeLoc.getLocation()) < 50) {
                     if (!activeSessions.containsKey(playerId)) {
                         activeSessions.put(playerId, new TrialSessionData(player, block.getLocation()));
@@ -62,7 +62,7 @@ public class TrialSpawnerListener implements Listener {
             String entityType = event.getEntityType().toString();
             if (entityType.contains("OMEN") || entityType.contains("TRIAL")) {
                 Location deathLoc = event.getEntity().getLocation();
-                if (deathLoc == null || deathLoc.getWorld() == null) return;
+                if (deathLoc.getWorld() == null) return;
                 
                 for (TrialSessionData session : new HashMap<>(activeSessions).values()) {
                     if (session.block != null && session.block.getWorld() != null &&
