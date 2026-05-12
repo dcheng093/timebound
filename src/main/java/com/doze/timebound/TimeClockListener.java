@@ -23,14 +23,17 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
 
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 public class TimeClockListener implements Listener {
     private static final long CLOCK_COOLDOWN_MS = 60_000L;
+    private static final long CLOCK_RESPAWN_DELAY_MS = 300_000L; // 5 minutes
 
     private final Main plugin;
     private final Map<UUID, Map<ClockType, Long>> cooldowns = new EnumMapBackedCooldowns();
+    private final Map<String, ClockRespawnData> clockRespawns = new HashMap<>();
 
     public TimeClockListener(Main plugin) {
         this.plugin = plugin;
@@ -123,11 +126,25 @@ public class TimeClockListener implements Listener {
                 ClockType holoType = ClockType.fromKey(typeStr);
 
                 if (holoType != null) {
-                    p.getInventory().addItem(TimeClockItems.createClock(plugin, holoType));
+                    // Check if player already has this clock
+                    if (playerHasClock(p, holoType)) {
+                        p.sendMessage(Component.text("You already have a " + holoType.displayName() + "!", NamedTextColor.RED));
+                        return;
+                    }
+                    
+                    ItemStack clockItem = TimeClockItems.createClock(plugin, holoType);
+                    p.getInventory().addItem(clockItem);
                     p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
 
                     display.getWorld().spawnParticle(Particle.CLOUD, display.getLocation().add(0, 0.5, 0), 15, 0.2, 0.2, 0.2, 0.05);
+                    
+                    Location displayLoc = display.getLocation();
                     display.remove();
+                    
+                    // Schedule respawn (except for brake)
+                    if (holoType != ClockType.BRAKE) {
+                        scheduleClockRespawn(displayLoc, holoType);
+                    }
                 }
                 return;
             }
@@ -228,5 +245,27 @@ public class TimeClockListener implements Listener {
     }
 
     private static class EnumMapBackedCooldowns extends java.util.HashMap<UUID, Map<ClockType, Long>> {
+    }
+
+    // ==========================================
+    // CLOCK RESPAWN & INVENTORY VALIDATION
+    // ==========================================
+    private boolean playerHasClock(Player player, ClockType type) {
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (TimeClockItems.getClockType(plugin, item) == type) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void scheduleClockRespawn(Location originalLocation, ClockType type) {
+        String key = originalLocation.getBlockX() + "," + originalLocation.getBlockY() + "," + originalLocation.getBlockZ() + "," + type.key();
+        
+        Bukkit.getScheduler().scheduleSyncDelayedTask(plugin, () -> {
+            plugin.getClockListener().spawnClickableClock(originalLocation, type);
+            Bukkit.broadcastMessage(Component.text(type.displayName() + " has respawned!", type.color()));
+            plugin.getLogger().info(type.displayName() + " respawned at " + originalLocation.getBlockX() + ", " + originalLocation.getBlockY() + ", " + originalLocation.getBlockZ());
+        }, CLOCK_RESPAWN_DELAY_MS / 50); // Convert milliseconds to ticks (20 ticks = 1 second)
     }
 }

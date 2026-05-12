@@ -65,12 +65,12 @@ public class TimeStructureManager {
     }
 
     public void locateStructure(Player player, ClockType type) {
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             ArmorStand marker = findStructureMarker(type);
             if (marker == null) {
-                String message = "Could not find a generated " + type.displayName() + " structure in any loaded world.";
-                plugin.getLogger().warning(message);
-                Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(ChatColor.RED + message));
+                String message = "No " + type.displayName() + " structure has been generated yet.";
+                player.sendMessage(ChatColor.RED + message);
+                plugin.getLogger().info(message);
                 return;
             }
 
@@ -78,7 +78,7 @@ public class TimeStructureManager {
             String worldName = location.getWorld().getName();
             String result = String.format("%s structure found in world '%s' at %d, %d, %d.", type.displayName(), worldName, location.getBlockX(), location.getBlockY(), location.getBlockZ());
             plugin.getLogger().info(result);
-            Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(ChatColor.GREEN + result));
+            player.sendMessage(ChatColor.GREEN + result);
         });
     }
 
@@ -142,7 +142,7 @@ public class TimeStructureManager {
         switch (type) {
             case BRAKE -> {
                 progress(origin, "Searching for the nearest naturally generated Trial Chamber...");
-                StructureSearchResult structureSearch = world.locateNearestStructure(origin, Structure.TRIAL_CHAMBERS, SEARCH_RADIUS, false);
+                StructureSearchResult structureSearch = world.locateNearestStructure(origin, Structure.TRIAL_CHAMBERS, SEARCH_RADIUS, true);
                 if (structureSearch == null) {
                     progress(origin, "No Trial Chamber found within " + SEARCH_RADIUS + " blocks.");
                     return null;

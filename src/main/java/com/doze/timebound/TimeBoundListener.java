@@ -1343,6 +1343,29 @@ public class TimeBoundListener implements Listener {
         }
 
         player.sendMessage(ChatColor.RED + "You cannot hold Time weapons in both hands. The offhand item was moved.");
+        
+        // Enforce single clock per type
+        enforceSingleClockPerType(player);
+    }
+
+    private void enforceSingleClockPerType(Player player) {
+        Map<ClockType, Integer> clockCount = new HashMap<>();
+        
+        for (int i = 0; i < player.getInventory().getSize(); i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            ClockType type = TimeClockItems.getClockType(plugin, item);
+            if (type != null) {
+                int count = clockCount.getOrDefault(type, 0);
+                if (count > 0) {
+                    // Drop excess clock
+                    player.getWorld().dropItemNaturally(player.getLocation(), item);
+                    player.getInventory().setItem(i, null);
+                    player.sendMessage(ChatColor.RED + "You can only hold one " + type.displayName() + " at a time. The extra was dropped.");
+                } else {
+                    clockCount.put(type, 1);
+                }
+            }
+        }
     }
 
     private void moveTimeWeaponToMainHand(Player player, ItemStack weapon) {

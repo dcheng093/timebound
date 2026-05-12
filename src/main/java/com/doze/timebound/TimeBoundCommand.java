@@ -99,10 +99,24 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             if (args.length < 2) {
-                p.sendMessage(ChatColor.RED + "Usage: /timebound give <freeze|brake|reverse|skip>");
+                p.sendMessage(ChatColor.YELLOW + "Usage: /timebound give weapons <freeze|brake|reverse|skip>");
+                p.sendMessage(ChatColor.YELLOW + "Usage: /timebound give clocks <freeze|brake|reverse|skip>");
                 return true;
             }
-            giveWeapon(p, args[1].toLowerCase());
+            String itemType = args[1].toLowerCase();
+            if (!itemType.equals("weapons") && !itemType.equals("clocks")) {
+                p.sendMessage(ChatColor.RED + "Use 'weapons' or 'clocks'.");
+                return true;
+            }
+            if (args.length < 3) {
+                p.sendMessage(ChatColor.RED + "Usage: /timebound give " + itemType + " <freeze|brake|reverse|skip>");
+                return true;
+            }
+            if (itemType.equals("weapons")) {
+                giveWeapon(p, args[2].toLowerCase());
+            } else {
+                giveClock(p, args[2].toLowerCase());
+            }
             return true;
         }
 
@@ -163,6 +177,21 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
     private void giveWeapon(Player player, String type) {
         ClockType clockType = ClockType.fromKey(type);
         if (clockType == null) {
+            player.sendMessage(ChatColor.RED + "Unknown type. Use freeze, brake, reverse, or skip.");
+            return;
+        }
+        ItemStack item = TimeBladeItems.createBlade(type);
+        if (item == null) {
+            player.sendMessage(ChatColor.RED + "Failed to create weapon.");
+            return;
+        }
+        player.getInventory().addItem(item);
+        player.sendMessage(ChatColor.GREEN + "Given: " + item.getItemMeta().getDisplayName());
+    }
+
+    private void giveClock(Player player, String type) {
+        ClockType clockType = ClockType.fromKey(type);
+        if (clockType == null) {
             player.sendMessage(ChatColor.RED + "Unknown clock. Use freeze, brake, reverse, or skip.");
             return;
         }
@@ -176,7 +205,8 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
         if (isAdmin(sender)) {
             sender.sendMessage(ChatColor.YELLOW + "/timebound generate <freeze|brake|reverse|skip|all>" + ChatColor.GRAY + " - generate structure(s)");
             sender.sendMessage(ChatColor.YELLOW + "/timebound locate <freeze|brake|reverse|skip>" + ChatColor.GRAY + " - locate a generated structure");
-            sender.sendMessage(ChatColor.YELLOW + "/timebound give <freeze|brake|reverse|skip>" + ChatColor.GRAY + " - give a clock");
+            sender.sendMessage(ChatColor.YELLOW + "/timebound give weapons <freeze|brake|reverse|skip>" + ChatColor.GRAY + " - give a weapon");
+            sender.sendMessage(ChatColor.YELLOW + "/timebound give clocks <freeze|brake|reverse|skip>" + ChatColor.GRAY + " - give a clock");
             sender.sendMessage(ChatColor.YELLOW + "/timebound spawnclock <type>" + ChatColor.GRAY + " - spawn a clickable clock");
             sender.sendMessage(ChatColor.YELLOW + "/timebound cooldowns [player]" + ChatColor.GRAY + " - reset blade/clock cooldowns");
             sender.sendMessage(ChatColor.YELLOW + "/timebound clearstacks [player]" + ChatColor.GRAY + " - clear Time Skip stacks");
@@ -209,7 +239,7 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
 
         if (args.length == 2) {
             String sub = args[0].toLowerCase(Locale.ROOT);
-            if (sub.equals("generate") || sub.equals("locate") || sub.equals("give") || sub.equals("spawnclock")) {
+            if (sub.equals("generate") || sub.equals("locate") || sub.equals("spawnclock")) {
                 if (!admin) return Collections.emptyList();
                 out.add("freeze");
                 out.add("brake");
@@ -218,6 +248,12 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 if (sub.equals("generate")) {
                     out.add("all");
                 }
+                return filter(out, last);
+            }
+            if (sub.equals("give")) {
+                if (!admin) return Collections.emptyList();
+                out.add("weapons");
+                out.add("clocks");
                 return filter(out, last);
             }
             if (sub.equals("help")) {
@@ -229,7 +265,20 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 return filter(out, last);
             }
         }
-        return Collections.emptyList();
+        if (args.length == 3) {
+            String sub = args[0].toLowerCase(Locale.ROOT);
+            if (sub.equals("give")) {
+                if (!admin) return Collections.emptyList();
+                String type = args[1].toLowerCase(Locale.ROOT);
+                if (type.equals("weapons") || type.equals("clocks")) {
+                    out.add("freeze");
+                    out.add("brake");
+                    out.add("reverse");
+                    out.add("skip");
+                    return filter(out, last);
+                }
+            }
+        }
     }
 
     private List<String> filter(List<String> options, String prefix) {
