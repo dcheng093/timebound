@@ -35,17 +35,14 @@ public class RecipeUnlockListener implements Listener {
         UUID playerId = player.getUniqueId();
         String recipeKey = playerId + "_" + weaponType;
         
-        // Check if player has already crafted this weapon
         if (craftedWeapons.contains(recipeKey)) {
             event.setCancelled(true);
             sendColored(player, NamedTextColor.RED, "You have already crafted this weapon!");
             return;
         }
         
-        // Lock the recipe
         craftedWeapons.add(recipeKey);
         
-        // Announce craft to all players
         announceWeaponCraft(player, weaponType);
     }
 
@@ -63,7 +60,6 @@ public class RecipeUnlockListener implements Listener {
                 .append(weaponName)
                 .append(Component.text("!", NamedTextColor.YELLOW));
         
-        // Announce to all players
         for (Player p : Bukkit.getOnlinePlayers()) {
             p.sendMessage(message);
         }

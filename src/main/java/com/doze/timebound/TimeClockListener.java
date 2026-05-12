@@ -16,6 +16,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -31,7 +32,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 public class TimeClockListener implements Listener {
     private static final long CLOCK_COOLDOWN_MS = 60_000L;
-    private static final long CLOCK_RESPAWN_DELAY_MS = 300_000L; // 5 minutes
+    private static final long CLOCK_RESPAWN_DELAY_MS = 300_000L;
 
     private final Main plugin;
     private final Map<UUID, Map<ClockType, Long>> cooldowns = new EnumMapBackedCooldowns();
@@ -164,18 +165,15 @@ public class TimeClockListener implements Listener {
         ClockType cursorClockType = TimeClockItems.getClockType(plugin, cursor);
         ClockType clickedClockType = TimeClockItems.getClockType(plugin, clicked);
         
-        // Check if trying to swap clocks of the same type or create duplicates
         if (cursorClockType != null && clickedClockType != null && cursorClockType == clickedClockType) {
             event.setCancelled(true);
             player.sendMessage(Component.text("You cannot hold 2 of the same " + cursorClockType.displayName() + "!", NamedTextColor.RED));
             return;
         }
         
-        // Check if placing a clock when already having one of that type
         if (cursorClockType != null && playerHasClock(player, cursorClockType)) {
             event.setCancelled(true);
             player.sendMessage(Component.text("You already have a " + cursorClockType.displayName() + "!", NamedTextColor.RED));
-            return;
         }
     }
 

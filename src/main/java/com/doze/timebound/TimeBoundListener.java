@@ -438,7 +438,6 @@ public class TimeBoundListener implements Listener {
         if (playerLocation != null) {
             player.getWorld().spawnParticle(Particle.PORTAL, playerLocation.add(0, 1.0, 0), 55, 0.7, 0.9, 0.7, 0.12);
             player.getWorld().spawnParticle(Particle.WITCH, playerLocation.add(0, 1.0, 0), 25, 0.4, 0.7, 0.4, 0.02);
-            // Distinct sound cue for activation
             player.playSound(playerLocation, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.8f, 1.0f);
             player.playSound(playerLocation, Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 0.6f);
             player.playSound(playerLocation, Sound.ENTITY_WARDEN_ROAR, 0.5f, 1.0f);
@@ -525,7 +524,6 @@ public class TimeBoundListener implements Listener {
 
                     affected.add(entity);
                     plugin.getTimeManager().setRewinding(entity, true);
-                    // Grant Resistance 3 to prevent accidental fall damage
                     if (entity instanceof LivingEntity living) {
                         living.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 200, 2, false, true, true));
                     }
@@ -638,7 +636,6 @@ public class TimeBoundListener implements Listener {
             spawnIceSlash(victim.getLocation().clone().add(0, 1.0, 0));
         }
 
-        // Check for critical hit (attacker is not on ground)
         boolean isCriticalHit = attacker.getFallDistance() > 0.0f && !attacker.isInsideVehicle() && !(attacker.getLocation().getY() <= attacker.getWorld().getMinHeight());
 
         switch (blade) {
@@ -828,7 +825,6 @@ public class TimeBoundListener implements Listener {
     private void applyFreezePassive(LivingEntity victim, EntityDamageByEntityEvent event) {
         applyPowderSnowPassive(victim);
         victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, FREEZE_PASSIVE_TICKS, 9, false, true, true));
-        // Cap damage at 5 hearts (10 HP)
         double damageIncrease = Math.min(10.0, Math.max(1.0, victim.getFreezeTicks() / 80.0));
         event.setDamage(event.getDamage() + damageIncrease);
         victim.getWorld().playSound(victim.getLocation(), Sound.BLOCK_POWDER_SNOW_BREAK, 0.8f, 1.1f);
@@ -964,8 +960,7 @@ public class TimeBoundListener implements Listener {
                     .multiply(1.2));
         }
 
-        // Add absorption reflection (0.25x to 0.50x damage) to the player
-        double absorptionAmount = damage * 0.375; // Average of 0.25 and 0.50
+        double absorptionAmount = damage * 0.375;
         player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 200, 0, false, true, true));
         if (player instanceof LivingEntity living) {
             AttributeInstance absorbAttribute = living.getAttribute(Attribute.GENERIC_MAX_ABSORPTION);

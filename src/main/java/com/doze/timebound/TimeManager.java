@@ -1,12 +1,20 @@
 package com.doze.timebound;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
-
-import java.util.*;
 
 public class TimeManager {
 
@@ -44,7 +52,7 @@ public class TimeManager {
             e.teleport(past.location);
         }
     }
-
+    @SuppressWarnings("null")
     public void rewindHealth(LivingEntity e, int ticks) {
         Deque<EntityState> list = entityHistory.get(e.getUniqueId());
         if (list == null || list.isEmpty()) return;

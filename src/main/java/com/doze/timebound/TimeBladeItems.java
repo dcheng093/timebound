@@ -90,7 +90,6 @@ public final class TimeBladeItems {
     }
 
     private static void registerFreezeBladeRecipe(Main plugin) {
-        // Freeze Blade: Blue ice in corners, clock in middle, snowballs around
         NamespacedKey key = new NamespacedKey(plugin, "freeze_time_blade_recipe");
         Bukkit.removeRecipe(key);
         
@@ -112,7 +111,6 @@ public final class TimeBladeItems {
     }
 
     private static void registerBrakeBladeRecipe(Main plugin) {
-        // Brake Mace: Heavy materials in structured pattern around clock
         NamespacedKey key = new NamespacedKey(plugin, "time_brake_blade_recipe");
         Bukkit.removeRecipe(key);
         
@@ -135,7 +133,6 @@ public final class TimeBladeItems {
     }
 
     private static void registerSkipBladeRecipe(Main plugin) {
-        // Skip Blade: Golden/yellow materials in speed theme
         NamespacedKey key = new NamespacedKey(plugin, "time_skip_blade_recipe");
         Bukkit.removeRecipe(key);
         
@@ -157,7 +154,6 @@ public final class TimeBladeItems {
     }
 
     private static void registerReverseBladeRecipe(Main plugin) {
-        // Reverse Blade: Amethyst and purple materials in otherworldly pattern
         NamespacedKey key = new NamespacedKey(plugin, "time_reverse_blade_recipe");
         Bukkit.removeRecipe(key);
         
