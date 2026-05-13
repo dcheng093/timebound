@@ -69,6 +69,67 @@ public class TimeClockListener implements Listener {
             }
         }.runTaskTimer(plugin, 0L, 1L);
     }
+    @SuppressWarnings("null")
+    public void spawnTimedClock(Location loc, ClockType type, long timerSeconds) {
+        ItemDisplay display = loc.getWorld().spawn(loc, ItemDisplay.class, entity -> {
+            entity.setItemStack(TimeClockItems.createClock(plugin, type));
+            entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.GROUND);
+
+            entity.getPersistentDataContainer().set(new NamespacedKey(plugin, "timed_clock"), PersistentDataType.STRING, type.key());
+            entity.getPersistentDataContainer().set(new NamespacedKey(plugin, "timer_end"), PersistentDataType.LONG, System.currentTimeMillis() + timerSeconds * 1000);
+
+            entity.setDisplayWidth(1.5f);
+            entity.setDisplayHeight(1.5f);
+
+            entity.setCustomNameVisible(true);
+            entity.customName(Component.text(type.displayName() + " (Locked)", type.color(), net.kyori.adventure.text.format.TextDecoration.BOLD));
+        });
+
+        new BukkitRunnable() {
+            float yaw = 0;
+            long timerEndTime = System.currentTimeMillis() + timerSeconds * 1000;
+
+            @Override
+            public void run() {
+                if (!display.isValid()) {
+                    this.cancel();
+                    return;
+                }
+
+                long timeLeft = timerEndTime - System.currentTimeMillis();
+                if (timeLeft <= 0) {
+                    display.getPersistentDataContainer().remove(new NamespacedKey(plugin, "timed_clock"));
+                    display.getPersistentDataContainer().remove(new NamespacedKey(plugin, "timer_end"));
+                    display.getPersistentDataContainer().set(new NamespacedKey(plugin, "clickable_clock"), PersistentDataType.STRING, type.key());
+                    display.customName(Component.text(type.displayName(), type.color(), net.kyori.adventure.text.format.TextDecoration.BOLD));
+                    
+                    if (display.getLocation().getWorld() != null) {
+                        display.getWorld().playSound(display.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.2f);
+                        display.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, display.getLocation(), 20, 0.3, 0.3, 0.3, 0.05);
+                    }
+                    
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        if (player.getWorld().equals(display.getWorld()) && player.getLocation().distance(display.getLocation()) <= 50) {
+                            Component message = Component.text("The ", NamedTextColor.YELLOW)
+                                    .append(Component.text(type.displayName(), type.color(), net.kyori.adventure.text.format.TextDecoration.BOLD))
+                                    .append(Component.text(" is now available for claiming!", NamedTextColor.YELLOW));
+                            player.sendMessage(message);
+                        }
+                    }
+                    
+                    this.cancel();
+                    return;
+                }
+                
+                yaw += 3;
+                display.setRotation(yaw, 0);
+                
+                long secondsLeft = (timeLeft + 999) / 1000;
+                display.customName(Component.text(type.displayName() + " (" + secondsLeft + "s)", type.color(), net.kyori.adventure.text.format.TextDecoration.BOLD));
+                display.getWorld().spawnParticle(type.ambientParticle(), display.getLocation().add(0, 0.5, 0), 1, 0.2, 0.2, 0.2, 0.01);
+            }
+        }.runTaskTimer(plugin, 0L, 20L);
+    }
 
     @EventHandler
     public void onClockSwap(PlayerSwapHandItemsEvent event) {
@@ -112,6 +173,13 @@ public class TimeClockListener implements Listener {
 
             if (ray != null && ray.getHitEntity() instanceof ItemDisplay display) {
                 event.setCancelled(true);
+                
+                NamespacedKey timedKey = new NamespacedKey(plugin, "timed_clock");
+                if (display.getPersistentDataContainer().has(timedKey, PersistentDataType.STRING)) {
+                    p.sendMessage(Component.text("This clock is still locked! Wait for the timer to expire.", NamedTextColor.RED));
+                    return;
+                }
+                
                 String typeStr = display.getPersistentDataContainer().get(clickKey, PersistentDataType.STRING);
                 ClockType holoType = ClockType.fromKey(typeStr);
 
@@ -123,9 +191,17 @@ public class TimeClockListener implements Listener {
                     
                     ItemStack clockItem = TimeClockItems.createClock(plugin, holoType);
                     p.getInventory().addItem(clockItem);
+                    
+                    Component clockName = Component.text(holoType.displayName(), holoType.color(), net.kyori.adventure.text.format.TextDecoration.BOLD);
+                    Component message = Component.text("You have claimed the ", NamedTextColor.YELLOW)
+                            .append(clockName)
+                            .append(Component.text("!", NamedTextColor.YELLOW));
+                    p.sendMessage(message);
+                    
                     Location playerLocation = p.getLocation();
                     if (playerLocation != null) {
-                        p.playSound(playerLocation, Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f);
+                        p.playSound(playerLocation, Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.2f);
+                        p.playSound(playerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.6f, 1.0f);
                     }
                     display.getWorld().spawnParticle(Particle.CLOUD, display.getLocation().add(0, 0.5, 0), 15, 0.2, 0.2, 0.2, 0.05);
                     

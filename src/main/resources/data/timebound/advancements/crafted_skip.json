@@ -1,0 +1,18 @@
+{
+  "parent": "timebound:root",
+  "display": {
+    "icon": {
+      "item": "netherite_sword"
+    },
+    "title": "Crafted the Skip Blade",
+    "description": "Craft the Time Skip Blade using the Skip Clock",
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "crafted": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

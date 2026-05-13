@@ -1,0 +1,17 @@
+{
+  "display": {
+    "icon": {
+      "item": "clock"
+    },
+    "title": "Timebound",
+    "description": "Master the power of time itself",
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "timebound": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

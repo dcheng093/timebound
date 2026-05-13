@@ -5,11 +5,14 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
+import org.bukkit.advancement.Advancement;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import net.kyori.adventure.text.Component;
@@ -18,8 +21,10 @@ import net.kyori.adventure.text.format.TextDecoration;
 
 public class RecipeUnlockListener implements Listener {
     private final Set<String> craftedWeapons = new HashSet<>();
+    private final JavaPlugin plugin;
 
     public RecipeUnlockListener(JavaPlugin plugin) {
+        this.plugin = plugin;
     }
 
     @EventHandler
@@ -35,15 +40,48 @@ public class RecipeUnlockListener implements Listener {
         UUID playerId = player.getUniqueId();
         String recipeKey = playerId + "_" + weaponType;
         
-        if (craftedWeapons.contains(recipeKey)) {
+        if (hasCraftedWeapon(player, weaponType)) {
             event.setCancelled(true);
             sendColored(player, NamedTextColor.RED, "You have already crafted this weapon!");
             return;
         }
         
+        markWeaponCrafted(player, weaponType);
         craftedWeapons.add(recipeKey);
         
         announceWeaponCraft(player, weaponType);
+        grantAdvancement(player, weaponType);
+    }
+
+    private boolean hasCraftedWeapon(Player player, String weaponType) {
+        UUID playerId = player.getUniqueId();
+        String recipeKey = playerId + "_" + weaponType;
+        if (craftedWeapons.contains(recipeKey)) {
+            return true;
+        }
+        
+        String nbtKey = "crafted_" + weaponType;
+        return player.getPersistentDataContainer().has(
+            new NamespacedKey(plugin, nbtKey),
+            PersistentDataType.BYTE
+        );
+    }
+
+    private void markWeaponCrafted(Player player, String weaponType) {
+        String nbtKey = "crafted_" + weaponType;
+        player.getPersistentDataContainer().set(
+            new NamespacedKey(plugin, nbtKey),
+            PersistentDataType.BYTE,
+            (byte) 1
+        );
+    }
+
+    private void grantAdvancement(Player player, String weaponType) {
+        NamespacedKey advKey = new NamespacedKey("timebound", "crafted_" + weaponType);
+        Advancement advancement = Bukkit.getAdvancement(advKey);
+        if (advancement != null) {
+            player.getAdvancementProgress(advancement).awardCriteria("crafted");
+        }
     }
 
     private void announceWeaponCraft(Player player, String weaponType) {

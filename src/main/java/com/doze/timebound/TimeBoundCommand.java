@@ -79,7 +79,7 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             if (args.length < 2) {
-                sendColored(p, NamedTextColor.RED, "Usage: /timebound spawnclock <freeze|brake|reverse|skip>");
+                sendColored(p, NamedTextColor.RED, "Usage: /timebound spawnclock <freeze|brake|reverse|skip> [timer_seconds]");
                 return true;
             }
             ClockType clockType = ClockType.fromKey(args[1].toLowerCase());
@@ -87,6 +87,21 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 sendColored(p, NamedTextColor.RED, "Unknown clock. Use freeze, brake, reverse, or skip.");
                 return true;
             }
+            
+            long timerSeconds = 0;
+            if (args.length >= 3) {
+                try {
+                    timerSeconds = Long.parseLong(args[2]);
+                    if (timerSeconds < 0) {
+                        sendColored(p, NamedTextColor.RED, "Timer must be 0 or positive.");
+                        return true;
+                    }
+                } catch (NumberFormatException e) {
+                    sendColored(p, NamedTextColor.RED, "Invalid timer value. Must be a number.");
+                    return true;
+                }
+            }
+            
             Main main = Main.getInstance();
             if (main == null) {
                 sendColored(p, NamedTextColor.RED, "Unable to spawn the clock at this time.");
@@ -102,8 +117,14 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 sendColored(p, NamedTextColor.RED, "Unable to determine spawn location.");
                 return true;
             }
-            clockListener.spawnClickableClock(targetLocation.add(0, 1, 0), clockType);
-            sendColored(p, NamedTextColor.GREEN, "Spawned a clickable " + clockType.displayName() + "!");
+            
+            if (timerSeconds > 0) {
+                clockListener.spawnTimedClock(targetLocation.add(0, 1, 0), clockType, timerSeconds);
+                sendColored(p, NamedTextColor.GREEN, "Spawned a timed " + clockType.displayName() + " with " + timerSeconds + " second(s) timer!");
+            } else {
+                clockListener.spawnClickableClock(targetLocation.add(0, 1, 0), clockType);
+                sendColored(p, NamedTextColor.GREEN, "Spawned a clickable " + clockType.displayName() + "!");
+            }
             return true;
         }
 
@@ -240,6 +261,15 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 3) {
             String sub = args[0].toLowerCase(Locale.ROOT);
+            if (sub.equals("spawnclock")) {
+                if (!admin) return Collections.emptyList();
+                out.add("0");
+                out.add("30");
+                out.add("60");
+                out.add("120");
+                out.add("300");
+                return filter(out, last);
+            }
             if (sub.equals("give")) {
                 if (!admin) return Collections.emptyList();
                 String type = args[1].toLowerCase(Locale.ROOT);

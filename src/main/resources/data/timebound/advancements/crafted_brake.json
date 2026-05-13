@@ -1,0 +1,18 @@
+{
+  "parent": "timebound:root",
+  "display": {
+    "icon": {
+      "item": "mace"
+    },
+    "title": "Crafted the Brake Mace",
+    "description": "Craft the Time Brake Mace using the Brake Clock",
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "crafted": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

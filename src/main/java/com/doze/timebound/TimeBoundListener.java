@@ -286,6 +286,7 @@ public class TimeBoundListener implements Listener {
         target.getWorld().spawnParticle(Particle.CLOUD, target.getLocation().add(0, 1.0, 0), 18, 0.35, 0.7, 0.35, 0.01);
         player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1.0f, 1.2f);
         target.getWorld().playSound(target.getLocation(), Sound.BLOCK_POWDER_SNOW_PLACE, 1.0f, 0.7f);
+        target.getWorld().playSound(target.getLocation(), Sound.ENTITY_PLAYER_HURT_FREEZE, 0.8f, 1.0f);
         return true;
     }
 
@@ -346,14 +347,17 @@ public class TimeBoundListener implements Listener {
             return false;
         }
 
-        target.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 100, 2, false, true, true));
+        target.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 100, 4, false, true, true));
         target.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 100, 0, false, true, true));
+        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 4, false, true, true));
 
         if (target instanceof Player targetPlayer) {
             brakeSprintBlockedUntil.put(targetPlayer.getUniqueId(), System.currentTimeMillis() + 10000);
             targetPlayer.setCooldown(Material.SHIELD, 200);
+            targetPlayer.setFreezeTicks(100);
             showVictimTimer(targetPlayer, "Weakened", 5, BarColor.WHITE);
             showVictimTimer(targetPlayer, "Shield Disabled", 10, BarColor.RED);
+            showVictimTimer(targetPlayer, "Cannot Jump", 5, BarColor.GREEN);
             targetPlayer.setSprinting(false);
         }
         spawnLineParticles(player, target.getLocation(), Particle.SMOKE, 18);
@@ -361,6 +365,7 @@ public class TimeBoundListener implements Listener {
         target.getWorld().spawnParticle(Particle.ASH, target.getLocation().add(0, 1.0, 0), 18, 0.4, 0.6, 0.4, 0.01);
         player.playSound(player.getLocation(), Sound.BLOCK_SCULK_SENSOR_CLICKING, 0.8f, 0.6f);
         target.getWorld().playSound(target.getLocation(), Sound.ENTITY_WARDEN_LISTENING, 0.7f, 1.5f);
+        target.getWorld().playSound(target.getLocation(), Sound.ENTITY_IRON_GOLEM_DAMAGE, 0.6f, 0.8f);
         return true;
     }
 
@@ -480,11 +485,15 @@ public class TimeBoundListener implements Listener {
             if (entity.equals(caster)) continue;
             if (entity instanceof Player p && TrustManager.isTrusted(caster, p)) continue;
 
-            entity.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 200, 2, false, true, true));
+            entity.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 200, 4, false, true, true));
             entity.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 200, 0, false, true, true));
+            entity.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 200, 4, false, true, true));
             if (entity instanceof Player player) {
                 player.setSprinting(false);
+                player.setCooldown(Material.SHIELD, 200);
+                player.setFreezeTicks(100);
                 showVictimTimer(player, "Weakened", 10, BarColor.WHITE);
+                showVictimTimer(player, "Cannot Jump", 10, BarColor.RED);
             }
             entity.getWorld().spawnParticle(Particle.SMOKE, entity.getLocation().add(0, 1.0, 0), 30, 0.5, 0.8, 0.5, 0.03);
             entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_SCULK_SHRIEKER_SHRIEK, 0.25f, 0.7f);
@@ -826,7 +835,7 @@ public class TimeBoundListener implements Listener {
         applyPowderSnowPassive(victim);
         victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, FREEZE_PASSIVE_TICKS, 9, false, true, true));
         double damageIncrease = Math.min(10.0, Math.max(1.0, victim.getFreezeTicks() / 80.0));
-        event.setDamage(event.getDamage() + damageIncrease);
+        event.setDamage(Math.min(20.0, event.getDamage() + damageIncrease));
         victim.getWorld().playSound(victim.getLocation(), Sound.BLOCK_POWDER_SNOW_BREAK, 0.8f, 1.1f);
     }
 
@@ -948,16 +957,18 @@ public class TimeBoundListener implements Listener {
         double damage = storedDamage == null ? 0.0 : storedDamage;
         if (damage <= 0) return;
 
-        double radius = Math.min(8.0, 3.0 + damage / 4.0);
+        double radius = Math.min(12.0, 3.0 + damage / 4.0);
         for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
             if (entity.equals(player) || !(entity instanceof LivingEntity living)) continue;
             if (living instanceof Player p && TrustManager.isTrusted(player, p)) continue;
 
-            living.damage(Math.max(2.0, damage * 0.75), player);
+            double shockwaveDamage = Math.max(2.0, damage * 0.75);
+            living.damage(shockwaveDamage, player);
             living.setVelocity(living.getLocation().toVector()
                     .subtract(player.getLocation().toVector())
                     .normalize()
                     .multiply(1.2));
+            living.getWorld().playSound(living.getLocation(), Sound.ENTITY_GENERIC_HURT, 0.6f, 0.8f);
         }
 
         double absorptionAmount = damage * 0.375;
@@ -979,6 +990,7 @@ public class TimeBoundListener implements Listener {
         player.getWorld().spawnParticle(Particle.WITCH, player.getLocation().add(0, 1.0, 0), 60, radius / 3, 1.0, radius / 3, 0.05);
         player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.7f, 1.2f);
         player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 0.8f, 1.4f);
+        player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_HURT, 0.5f, 0.6f);
     }
 
     private void reviveRecentDeaths(Player caster) {
