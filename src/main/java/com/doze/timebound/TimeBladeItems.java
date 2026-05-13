@@ -89,8 +89,17 @@ public final class TimeBladeItems {
         registerReverseBladeRecipe(plugin);
     }
 
+    public static NamespacedKey recipeKey(Main plugin, ClockType type) {
+        return switch (type) {
+            case FREEZE -> new NamespacedKey(plugin, "freeze_time_blade_recipe");
+            case BRAKE -> new NamespacedKey(plugin, "time_brake_blade_recipe");
+            case SKIP -> new NamespacedKey(plugin, "time_skip_blade_recipe");
+            case REVERSE -> new NamespacedKey(plugin, "time_reverse_blade_recipe");
+        };
+    }
+
     private static void registerFreezeBladeRecipe(Main plugin) {
-        NamespacedKey key = new NamespacedKey(plugin, "freeze_time_blade_recipe");
+        NamespacedKey key = recipeKey(plugin, ClockType.FREEZE);
         Bukkit.removeRecipe(key);
         
         ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.FREEZE);
@@ -111,7 +120,7 @@ public final class TimeBladeItems {
     }
 
     private static void registerBrakeBladeRecipe(Main plugin) {
-        NamespacedKey key = new NamespacedKey(plugin, "time_brake_blade_recipe");
+        NamespacedKey key = recipeKey(plugin, ClockType.BRAKE);
         Bukkit.removeRecipe(key);
         
         ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.BRAKE);
@@ -133,7 +142,7 @@ public final class TimeBladeItems {
     }
 
     private static void registerSkipBladeRecipe(Main plugin) {
-        NamespacedKey key = new NamespacedKey(plugin, "time_skip_blade_recipe");
+        NamespacedKey key = recipeKey(plugin, ClockType.SKIP);
         Bukkit.removeRecipe(key);
         
         ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.SKIP);
@@ -154,7 +163,7 @@ public final class TimeBladeItems {
     }
 
     private static void registerReverseBladeRecipe(Main plugin) {
-        NamespacedKey key = new NamespacedKey(plugin, "time_reverse_blade_recipe");
+        NamespacedKey key = recipeKey(plugin, ClockType.REVERSE);
         Bukkit.removeRecipe(key);
         
         ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.REVERSE);
@@ -202,7 +211,8 @@ public final class TimeBladeItems {
                         "",
                         ChatColor.AQUA + "" + ChatColor.BOLD + "ABILITY",
                         ChatColor.GRAY + "Press F while aiming at an entity.",
-                        ChatColor.WHITE + "Freezes the target and inflicts powdered snow.",
+                        ChatColor.WHITE + "Freezes the target for 5 seconds.",
+                        ChatColor.WHITE + "Hits during freeze are stored and released safely.",
                         ChatColor.DARK_GRAY + "Ability Cooldown: 60 seconds.",
                         "",
                         ChatColor.BLUE + "" + ChatColor.BOLD + "ULT",
@@ -212,8 +222,8 @@ public final class TimeBladeItems {
                         ChatColor.DARK_GRAY + "Ult Charge: 5 player kills with this blade.",
                         "",
                         ChatColor.DARK_AQUA + "" + ChatColor.BOLD + "PASSIVE",
-                        ChatColor.WHITE + "5% chance to apply powdered snow damage.",
-                        ChatColor.WHITE + "Deals more damage the longer the target is frozen."
+                        ChatColor.WHITE + "Critical hits apply powdered snow pressure.",
+                        ChatColor.WHITE + "Total Freeze Blade damage is capped at 10 hearts."
                 )
         ),
         BRAKE(
@@ -226,7 +236,7 @@ public final class TimeBladeItems {
                         "",
                         ChatColor.GRAY + "" + ChatColor.BOLD + "ABILITY",
                         ChatColor.GRAY + "Press F while aiming at an entity.",
-                        ChatColor.WHITE + "Applies brake pressure without a blindness screen.",
+                        ChatColor.WHITE + "Applies heavy slowness, weakness, and glow.",
                         ChatColor.WHITE + "Players cannot sprint and lose shield use for 10s.",
                         ChatColor.DARK_GRAY + "Ability Cooldown: 60 seconds.",
                         "",
@@ -237,7 +247,7 @@ public final class TimeBladeItems {
                         ChatColor.DARK_GRAY + "Ult Charge: 5 player kills with this mace.",
                         "",
                         ChatColor.BLACK + "" + ChatColor.BOLD + "PASSIVE",
-                        ChatColor.WHITE + "5% chance to inflict slowness on hit."
+                        ChatColor.WHITE + "15% chance to inflict weakness and glow on hit."
                 )
         ),
         SKIP(
@@ -250,7 +260,7 @@ public final class TimeBladeItems {
                         "",
                         ChatColor.YELLOW + "" + ChatColor.BOLD + "ABILITY",
                         ChatColor.GRAY + "Press F.",
-                        ChatColor.WHITE + "Instant 14 block teleport.",
+                        ChatColor.WHITE + "Instant safe teleport up to 14 blocks.",
                         ChatColor.DARK_GRAY + "Ability Cooldown: 3 seconds.",
                         ChatColor.DARK_GRAY + "Ability Charges: 3 (Restores 1 every 10s)",
                         "",
@@ -276,7 +286,8 @@ public final class TimeBladeItems {
                         "",
                         ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "ABILITY",
                         ChatColor.GRAY + "Press F.",
-                        ChatColor.WHITE + "Absorb damage, then release a shockwave.",
+                        ChatColor.WHITE + "Absorbs incoming damage for 5 seconds.",
+                        ChatColor.WHITE + "Releases AoE damage, knockback, particles, and sound.",
                         ChatColor.DARK_GRAY + "Ability Cooldown: 30 seconds.",
                         "",
                         ChatColor.DARK_PURPLE + "" + ChatColor.BOLD + "ULT",

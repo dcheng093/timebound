@@ -2,9 +2,9 @@
   "parent": "timebound:root",
   "display": {
     "icon": {
-      "item": "mace"
+      "id": "minecraft:mace"
     },
-    "title": "Crafted the Brake Mace",
+    "title": "Master of Brake",
     "description": "Craft the Time Brake Mace using the Brake Clock",
     "frame": "goal",
     "show_toast": true,

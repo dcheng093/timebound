@@ -19,6 +19,3 @@ permissions:
   timebound.admin:
     description: Access to TimeBound admin commands
     default: op
-softdepend:
-  - WorldEdit
-  - FastAsyncWorldEdit

@@ -1,46 +1,72 @@
 package com.doze.timebound;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.logging.Level;
 
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.advancement.Advancement;
 import org.bukkit.advancement.AdvancementProgress;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
 
 public class AdvancementManager {
-    private final JavaPlugin plugin;
+    private static final List<String> ADVANCEMENTS = List.of(
+            "root",
+            "crafted_freeze",
+            "crafted_brake",
+            "crafted_skip",
+            "crafted_reverse"
+    );
 
-    public AdvancementManager(JavaPlugin plugin) {
+    private final Main plugin;
+
+    public AdvancementManager(Main plugin) {
         this.plugin = plugin;
-        loadAdvancements();
     }
 
-    private void loadAdvancements() {
-        Path advancementsDir = Paths.get(Bukkit.getWorlds().get(0).getWorldFolder().getAbsolutePath())
-                .getParent()
-                .resolve("advancements_custom");
-        
-        try {
-            Files.createDirectories(advancementsDir);
-        } catch (IOException e) {
-            plugin.getLogger().warning(() -> String.format("Advancement not found: %s", e.getMessage()));
+    public void registerAdvancements() {
+        for (String id : ADVANCEMENTS) {
+            NamespacedKey key = new NamespacedKey(plugin, id);
+            try {
+                Bukkit.getUnsafe().removeAdvancement(key);
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+
+        for (String id : ADVANCEMENTS) {
+            NamespacedKey key = new NamespacedKey(plugin, id);
+            String path = "data/timebound/advancements/" + id + ".json";
+            try (InputStream stream = plugin.getResource(path)) {
+                if (stream == null) {
+                    plugin.getLogger().warning("Missing advancement resource: " + path);
+                    continue;
+                }
+                String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+                Bukkit.getUnsafe().loadAdvancement(key, json);
+            } catch (IOException | IllegalArgumentException e) {
+                plugin.getLogger().log(Level.WARNING, "Failed to register advancement " + key, e);
+            }
         }
     }
 
     public void grantWeaponAdvancement(Player player, String weaponType) {
-        NamespacedKey advKey = new NamespacedKey("timebound", "crafted_" + weaponType);
-        Advancement advancement = Bukkit.getAdvancement(advKey);
-        
-        if (advancement != null) {
-            AdvancementProgress progress = player.getAdvancementProgress(advancement);
-            if (!progress.isDone()) {
-                progress.awardCriteria("crafted");
-            }
+        grant(player, "root", "timebound");
+        grant(player, "crafted_" + weaponType, "crafted");
+    }
+
+    private void grant(Player player, String id, String criteria) {
+        Advancement advancement = Bukkit.getAdvancement(new NamespacedKey(plugin, id));
+        if (advancement == null) {
+            plugin.getLogger().warning("Cannot grant missing advancement timebound:" + id + " to " + player.getName());
+            return;
+        }
+
+        AdvancementProgress progress = player.getAdvancementProgress(advancement);
+        if (!progress.isDone() && progress.getRemainingCriteria().contains(criteria)) {
+            progress.awardCriteria(criteria);
         }
     }
 }

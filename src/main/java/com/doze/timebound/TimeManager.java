@@ -58,7 +58,7 @@ public class TimeManager {
 
     EntityState past = list.peekLast();
     if (past != null) {
-        var maxHealthAttr = e.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        var maxHealthAttr = e.getAttribute(Attribute.MAX_HEALTH);
         double maxHealth = (maxHealthAttr != null) ? maxHealthAttr.getValue() : 20.0;
         
         e.setHealth(Math.min(maxHealth, Math.max(0.0, past.health)));

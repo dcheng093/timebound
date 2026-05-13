@@ -36,7 +36,7 @@ public final class TimeClockItems {
                     Component.text(""),
                     Component.text("PASSIVE: Critical Hits", NamedTextColor.AQUA),
                     Component.text("Applies powdered snow damage on critical hits", NamedTextColor.GRAY),
-                    Component.text("Capped at 5 hearts damage", NamedTextColor.DARK_GRAY)
+                    Component.text("Freeze Blade damage cap: 10 hearts", NamedTextColor.DARK_GRAY)
             );
             case BRAKE -> List.of(
                     Component.text("Temporal Brake Mechanism", NamedTextColor.DARK_GRAY),

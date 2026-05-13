@@ -2,9 +2,9 @@
   "parent": "timebound:root",
   "display": {
     "icon": {
-      "item": "netherite_sword"
+      "id": "minecraft:netherite_sword"
     },
-    "title": "Crafted the Skip Blade",
+    "title": "Master of Skip",
     "description": "Craft the Time Skip Blade using the Skip Clock",
     "frame": "goal",
     "show_toast": true,

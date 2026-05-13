@@ -3,7 +3,6 @@ package com.doze.timebound;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.logging.Level;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -32,7 +31,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 public class TimeClockListener implements Listener {
     private static final long CLOCK_COOLDOWN_MS = 60_000L;
-    private static final long CLOCK_RESPAWN_DELAY_MS = 300_000L;
 
     private final Main plugin;
     private final Map<UUID, Map<ClockType, Long>> cooldowns = new EnumMapBackedCooldowns();
@@ -42,6 +40,10 @@ public class TimeClockListener implements Listener {
     }
 
     public void spawnClickableClock(Location loc, ClockType type) {
+        if (plugin.getConfig().getBoolean("claimed.clocks." + type.key(), false)) {
+            plugin.getLogger().info(type.displayName() + " is already claimed; clickable display was not spawned.");
+            return;
+        }
         ItemDisplay display = loc.getWorld().spawn(loc, ItemDisplay.class, entity -> {
             entity.setItemStack(TimeClockItems.createClock(plugin, type));
             entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.GROUND);
@@ -71,6 +73,10 @@ public class TimeClockListener implements Listener {
     }
     @SuppressWarnings("null")
     public void spawnTimedClock(Location loc, ClockType type, long timerSeconds) {
+        if (plugin.getConfig().getBoolean("claimed.clocks." + type.key(), false)) {
+            plugin.getLogger().info(type.displayName() + " is already claimed; timed display was not spawned.");
+            return;
+        }
         ItemDisplay display = loc.getWorld().spawn(loc, ItemDisplay.class, entity -> {
             entity.setItemStack(TimeClockItems.createClock(plugin, type));
             entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.GROUND);
@@ -184,13 +190,21 @@ public class TimeClockListener implements Listener {
                 ClockType holoType = ClockType.fromKey(typeStr);
 
                 if (holoType != null) {
-                    if (playerHasClock(p, holoType)) {
-                        p.sendMessage(Component.text("You already have a " + holoType.displayName() + "!", NamedTextColor.RED));
+                    RecipeUnlockListener recipes = plugin.getRecipeUnlockListener();
+                    if (recipes != null && !recipes.canClaimClock(p, holoType)) {
+                        p.sendMessage(Component.text("This " + holoType.displayName() + " has already been claimed.", NamedTextColor.RED));
+                        p.getWorld().playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.7f);
                         return;
                     }
-                    
+
                     ItemStack clockItem = TimeClockItems.createClock(plugin, holoType);
-                    p.getInventory().addItem(clockItem);
+                    Map<Integer, ItemStack> leftovers = p.getInventory().addItem(clockItem);
+                    for (ItemStack leftover : leftovers.values()) {
+                        p.getWorld().dropItemNaturally(p.getLocation(), leftover);
+                    }
+                    if (recipes != null) {
+                        recipes.recordClockClaim(p, holoType);
+                    }
                     
                     Component clockName = Component.text(holoType.displayName(), holoType.color(), net.kyori.adventure.text.format.TextDecoration.BOLD);
                     Component message = Component.text("You have claimed the ", NamedTextColor.YELLOW)
@@ -200,17 +214,11 @@ public class TimeClockListener implements Listener {
                     
                     Location playerLocation = p.getLocation();
                     if (playerLocation != null) {
-                        p.playSound(playerLocation, Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.2f);
-                        p.playSound(playerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.6f, 1.0f);
+                        p.getWorld().playSound(playerLocation, Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.2f);
+                        p.getWorld().playSound(playerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.0f);
                     }
                     display.getWorld().spawnParticle(Particle.CLOUD, display.getLocation().add(0, 0.5, 0), 15, 0.2, 0.2, 0.2, 0.05);
-                    
-                    Location displayLoc = display.getLocation();
                     display.remove();
-                    
-                    if (holoType != ClockType.BRAKE) {
-                        scheduleClockRespawn(displayLoc, holoType);
-                    }
                 }
                 return;
             }
@@ -271,7 +279,7 @@ public class TimeClockListener implements Listener {
             setCooldown(player.getUniqueId(), type, System.currentTimeMillis() + CLOCK_COOLDOWN_MS);
             Location playerLocation = player.getLocation();
             if (playerLocation != null) {
-                player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 2.0f);
+                player.getWorld().playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 2.0f);
             }
         }
     }
@@ -340,29 +348,14 @@ public class TimeClockListener implements Listener {
     }
 
     private boolean playerHasClock(Player player, ClockType type) {
-        int count = 0;
         ItemStack[] contents = player.getInventory().getContents();
         if (contents != null) {
             for (ItemStack item : contents) {
                 if (TimeClockItems.getClockType(plugin, item) == type) {
-                    count++;
-                    if (count > 1) {
-                        return true;
-                    }
+                    return true;
                 }
             }
         }
         return false;
-    }
-
-    private void scheduleClockRespawn(Location originalLocation, ClockType type) {
-        Bukkit.getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.getClockListener().spawnClickableClock(originalLocation, type);
-            Component message = Component.text(type.displayName() + " has respawned!", type.color());
-            for (Player target : Bukkit.getOnlinePlayers()) {
-                target.sendMessage(message);
-            }
-            plugin.getLogger().log(Level.INFO, "{0} respawned at {1}, {2}, {3}", new Object[]{type.displayName(), originalLocation.getBlockX(), originalLocation.getBlockY(), originalLocation.getBlockZ()});
-        }, CLOCK_RESPAWN_DELAY_MS / 50);
     }
 }

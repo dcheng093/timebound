@@ -11,6 +11,7 @@ import org.bukkit.util.Vector;
 import java.util.*;
 
 public class TimeFreezeManager {
+    private static final double MAX_FREEZE_BLADE_DAMAGE = 20.0;
 
     private static final Set<UUID> frozen = new HashSet<>();
     private static final Map<UUID, Location> lockedLocation = new HashMap<>();
@@ -45,12 +46,12 @@ public class TimeFreezeManager {
 
     public static void bufferDamage(Entity target, double damage) {
         UUID id = target.getUniqueId();
-        damageBuffer.put(id, damageBuffer.getOrDefault(id, 0.0) + damage);
+        damageBuffer.put(id, Math.min(MAX_FREEZE_BLADE_DAMAGE, damageBuffer.getOrDefault(id, 0.0) + Math.max(0.0, damage)));
     }
 
     public static void bufferDamage(Entity target, double damage, Player attacker, ItemStack weapon) {
         UUID id = target.getUniqueId();
-        damageBuffer.put(id, damageBuffer.getOrDefault(id, 0.0) + damage);
+        damageBuffer.put(id, Math.min(MAX_FREEZE_BLADE_DAMAGE, damageBuffer.getOrDefault(id, 0.0) + Math.max(0.0, damage)));
         damageSourceBuffer.put(id, attacker);
         if (weapon != null) {
             weaponBuffer.put(id, weapon.clone());
@@ -61,7 +62,7 @@ public class TimeFreezeManager {
         UUID id = e.getUniqueId();
         if (!damageBuffer.containsKey(id)) return;
 
-        double damage = damageBuffer.get(id);
+        double damage = Math.min(MAX_FREEZE_BLADE_DAMAGE, damageBuffer.get(id));
         if (damage > 0 && e instanceof LivingEntity le) {
             Player attacker = damageSourceBuffer.get(id);
 

@@ -1,10 +1,11 @@
 {
   "display": {
     "icon": {
-      "item": "clock"
+      "id": "minecraft:clock"
     },
     "title": "Timebound",
     "description": "Master the power of time itself",
+    "background": "minecraft:block/white_concrete",
     "frame": "challenge",
     "show_toast": true,
     "announce_to_chat": true

@@ -168,10 +168,19 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             sendColored(player, NamedTextColor.RED, "Unknown type. Use freeze, brake, reverse, or skip.");
             return;
         }
+        Main main = Main.getInstance();
+        if (main != null && main.getConfig().getBoolean("claimed.weapons." + clockType.key(), false)) {
+            sendColored(player, NamedTextColor.RED, "That legendary weapon already exists.");
+            return;
+        }
         ItemStack item = TimeBladeItems.createBlade(type);
         if (item == null) {
             sendColored(player, NamedTextColor.RED, "Failed to create weapon.");
             return;
+        }
+        if (main != null) {
+            main.getConfig().set("claimed.weapons." + clockType.key(), true);
+            main.saveConfig();
         }
         player.getInventory().addItem(item);
         Component name = item.getItemMeta().displayName();
@@ -185,7 +194,16 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             sendColored(player, NamedTextColor.RED, "Unknown clock. Use freeze, brake, reverse, or skip.");
             return;
         }
+        Main main = Main.getInstance();
+        if (main != null && main.getConfig().getBoolean("claimed.clocks." + clockType.key(), false)) {
+            sendColored(player, NamedTextColor.RED, "That Time Clock has already been claimed.");
+            return;
+        }
         ItemStack item = TimeClockItems.createClock(Main.getInstance(), clockType);
+        if (main != null) {
+            main.getConfig().set("claimed.clocks." + clockType.key(), true);
+            main.saveConfig();
+        }
         player.getInventory().addItem(item);
         Component name = item.getItemMeta().displayName();
         if (name == null) name = Component.text(clockType.displayName(), NamedTextColor.GRAY);
@@ -221,8 +239,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             out.add("help");
             if (admin) {
-                out.add("generate");
-                out.add("locate");
                 out.add("give");
                 out.add("spawnclock");
                 out.add("cooldowns");
@@ -233,15 +249,12 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
 
         if (args.length == 2) {
             String sub = args[0].toLowerCase(Locale.ROOT);
-            if (sub.equals("generate") || sub.equals("locate") || sub.equals("spawnclock")) {
+            if (sub.equals("spawnclock")) {
                 if (!admin) return Collections.emptyList();
                 out.add("freeze");
                 out.add("brake");
                 out.add("reverse");
                 out.add("skip");
-                if (sub.equals("generate")) {
-                    out.add("all");
-                }
                 return filter(out, last);
             }
             if (sub.equals("give")) {

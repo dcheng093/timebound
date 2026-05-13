@@ -72,6 +72,7 @@ public class TimeBoundListener implements Listener {
     private static final int SERVER_RADIUS = 50;
     private static final int FREEZE_TICKS = 100;
     private static final int REVERSED_CONTROLS_TICKS = 100;
+    private static final double MAX_FREEZE_BLADE_DAMAGE = 20.0;
 
     private final Main plugin;
     private final Map<String, Long> abilityCooldowns = new HashMap<>();
@@ -113,7 +114,7 @@ public class TimeBoundListener implements Listener {
                         sendColored(player, NamedTextColor.YELLOW, "Time Skip Charge Restored (" + charges + "/3)");
                         Location playerLocation = player.getLocation();
                         if (playerLocation != null) {
-                            player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.2f);
+                            playAt(playerLocation, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.2f);
                         }
                     }
                 }
@@ -171,7 +172,7 @@ public class TimeBoundListener implements Listener {
         });
 
         removeSkipChargeBar(player);
-        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
+        playAt(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
     }
 
     public void clearSkipStacks(Player player) {
@@ -231,7 +232,7 @@ public class TimeBoundListener implements Listener {
             sendColored(player, NamedTextColor.RED, blade.displayName + " ability is on cooldown for " + secondsLeft + "s.");
             Location playerLocation = player.getLocation();
             if (playerLocation != null) {
-                player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+                playAt(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
             }
             return false;
         }
@@ -253,7 +254,7 @@ public class TimeBoundListener implements Listener {
             updateUltBar(player, blade);
             Location playerLocation = player.getLocation();
             if (playerLocation != null) {
-                player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+                playAt(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
             }
             return false;
         }
@@ -262,7 +263,7 @@ public class TimeBoundListener implements Listener {
         updateUltBar(player, blade);
         Location playerLocation = player.getLocation();
         if (playerLocation != null) {
-            player.playSound(playerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.2f);
+            playAt(playerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.2f);
         }
         return true;
     }
@@ -284,7 +285,7 @@ public class TimeBoundListener implements Listener {
         freezeEntity(target, FREEZE_TICKS, true);
         spawnLineParticles(player, target.getLocation(), Particle.SNOWFLAKE, 15);
         target.getWorld().spawnParticle(Particle.CLOUD, target.getLocation().add(0, 1.0, 0), 18, 0.35, 0.7, 0.35, 0.01);
-        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1.0f, 1.2f);
+        playAt(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1.0f, 1.2f);
         target.getWorld().playSound(target.getLocation(), Sound.BLOCK_POWDER_SNOW_PLACE, 1.0f, 0.7f);
         target.getWorld().playSound(target.getLocation(), Sound.ENTITY_PLAYER_HURT_FREEZE, 0.8f, 1.0f);
         return true;
@@ -363,7 +364,7 @@ public class TimeBoundListener implements Listener {
         spawnLineParticles(player, target.getLocation(), Particle.SMOKE, 18);
         target.getWorld().spawnParticle(Particle.SMOKE, target.getLocation().add(0, 1.0, 0), 35, 0.5, 0.8, 0.5, 0.03);
         target.getWorld().spawnParticle(Particle.ASH, target.getLocation().add(0, 1.0, 0), 18, 0.4, 0.6, 0.4, 0.01);
-        player.playSound(player.getLocation(), Sound.BLOCK_SCULK_SENSOR_CLICKING, 0.8f, 0.6f);
+        playAt(player.getLocation(), Sound.BLOCK_SCULK_SENSOR_CLICKING, 0.8f, 0.6f);
         target.getWorld().playSound(target.getLocation(), Sound.ENTITY_WARDEN_LISTENING, 0.7f, 1.5f);
         target.getWorld().playSound(target.getLocation(), Sound.ENTITY_IRON_GOLEM_DAMAGE, 0.6f, 0.8f);
         return true;
@@ -379,14 +380,14 @@ public class TimeBoundListener implements Listener {
         if (now < nextAllowed) {
             long left = (long) Math.ceil((nextAllowed - now) / 1000.0);
             sendColored(player, NamedTextColor.RED, "Time Skip ability is on cooldown for " + left + "s.");
-            player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            playAt(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
             return false;
         }
 
         int charges = skipCharges.getOrDefault(id, 3);
         if (charges <= 0) {
             sendColored(player, NamedTextColor.RED, "No Time Skip charges left! Regenerating...");
-            player.playSound(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            playAt(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
             return false;
         }
 
@@ -411,18 +412,18 @@ public class TimeBoundListener implements Listener {
                 target = up;
             } else {
                 sendColored(player, NamedTextColor.RED, "No safe opening to teleport to!");
-                player.playSound(playerLocation, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                playAt(playerLocation, Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                 return false;
             }
         }
 
         player.getWorld().spawnParticle(Particle.PORTAL, playerLocation.clone().add(0, 1.0, 0), 50, 0.5, 1.0, 0.5, 0.1);
-        player.playSound(playerLocation, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
+        playAt(playerLocation, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
 
         player.teleport(target);
 
         player.getWorld().spawnParticle(Particle.PORTAL, target.clone().add(0, 1.0, 0), 50, 0.5, 1.0, 0.5, 0.1);
-        player.playSound(target, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
+        playAt(target, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
 
         skipInternalCooldowns.put(id, now + 3000L);
         if (charges >= 3) {
@@ -436,19 +437,24 @@ public class TimeBoundListener implements Listener {
     private boolean startDamageAbsorb(Player player) {
         UUID id = player.getUniqueId();
         reverseAbsorbedDamage.put(id, 0.0);
-        reverseAbsorbUntil.put(id, System.currentTimeMillis() + 5000);
+        long expiresAt = System.currentTimeMillis() + 5000;
+        reverseAbsorbUntil.put(id, expiresAt);
         StarTimerManager.startTimer(plugin, player, "Reverse Absorb", 5);
-        showVictimTimer(player, "Reverse Absorb", 5, BarColor.PURPLE);
         Location playerLocation = player.getLocation();
         if (playerLocation != null) {
-            player.getWorld().spawnParticle(Particle.PORTAL, playerLocation.add(0, 1.0, 0), 55, 0.7, 0.9, 0.7, 0.12);
-            player.getWorld().spawnParticle(Particle.WITCH, playerLocation.add(0, 1.0, 0), 25, 0.4, 0.7, 0.4, 0.02);
-            player.playSound(playerLocation, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.8f, 1.0f);
-            player.playSound(playerLocation, Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 0.6f);
-            player.playSound(playerLocation, Sound.ENTITY_WARDEN_ROAR, 0.5f, 1.0f);
+            player.getWorld().spawnParticle(Particle.PORTAL, playerLocation.clone().add(0, 1.0, 0), 55, 0.7, 0.9, 0.7, 0.12);
+            player.getWorld().spawnParticle(Particle.WITCH, playerLocation.clone().add(0, 1.0, 0), 25, 0.4, 0.7, 0.4, 0.02);
+            playAt(playerLocation, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.4f, 1.0f);
+            playAt(playerLocation, Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 0.6f);
+            playAt(playerLocation, Sound.ENTITY_WARDEN_ROAR, 1.2f, 1.0f);
         }
 
-        Bukkit.getScheduler().runTaskLater(plugin, () -> releaseAbsorbedDamage(player), 100L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            Long currentExpiry = reverseAbsorbUntil.get(id);
+            if (currentExpiry != null && currentExpiry == expiresAt) {
+                releaseAbsorbedDamage(player);
+            }
+        }, 100L);
         return true;
     }
 
@@ -689,13 +695,13 @@ public class TimeBoundListener implements Listener {
             sendColored(killer, NamedTextColor.GREEN, blade.displayName + " ult is fully charged.");
             Location killerLocation = killer.getLocation();
             if (killerLocation != null) {
-                killer.playSound(killerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.5f);
+                playAt(killerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.5f);
                 killer.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, killerLocation.add(0, 1.0, 0), 24, 0.4, 0.6, 0.4, 0.02);
             }
         } else {
             Location killerLocation = killer.getLocation();
             if (killerLocation != null) {
-                killer.playSound(killerLocation, Sound.BLOCK_NOTE_BLOCK_PLING, 0.45f, 1.0f + charge * 0.12f);
+                playAt(killerLocation, Sound.BLOCK_NOTE_BLOCK_PLING, 0.45f, 1.0f + charge * 0.12f);
             }
         }
     }
@@ -834,8 +840,8 @@ public class TimeBoundListener implements Listener {
     private void applyFreezePassive(LivingEntity victim, EntityDamageByEntityEvent event) {
         applyPowderSnowPassive(victim);
         victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, FREEZE_PASSIVE_TICKS, 9, false, true, true));
-        double damageIncrease = Math.min(10.0, Math.max(1.0, victim.getFreezeTicks() / 80.0));
-        event.setDamage(Math.min(20.0, event.getDamage() + damageIncrease));
+        double damageIncrease = Math.min(6.0, Math.max(1.0, victim.getFreezeTicks() / 100.0));
+        event.setDamage(Math.min(MAX_FREEZE_BLADE_DAMAGE, Math.max(0.0, event.getDamage() + damageIncrease)));
         victim.getWorld().playSound(victim.getLocation(), Sound.BLOCK_POWDER_SNOW_BREAK, 0.8f, 1.1f);
     }
 
@@ -858,7 +864,6 @@ public class TimeBoundListener implements Listener {
                 }
 
                 victim.setFreezeTicks(victim.getMaxFreezeTicks() + 40);
-                victim.damage(1.0 + elapsed / 40.0);
                 elapsed += 20;
             }
         }.runTaskTimer(plugin, 0L, 20L);
@@ -889,13 +894,13 @@ public class TimeBoundListener implements Listener {
         Location attackerLocation = attacker.getLocation();
         if (attackerLocation != null) {
             attacker.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, attackerLocation.add(0, 1.0, 0), 8 + stacks * 4, 0.3, 0.4, 0.3, 0.04);
-            attacker.playSound(attackerLocation, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.45f, 1.0f + stacks * 0.2f);
+            playAt(attackerLocation, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.45f, 1.0f + stacks * 0.2f);
         }
     }
 
     private void applySkipStackEffects(Player player, int stacks) {
-        AttributeInstance speedAttr = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
-        AttributeInstance attackAttr = player.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE);
+        AttributeInstance speedAttr = player.getAttribute(Attribute.MOVEMENT_SPEED);
+        AttributeInstance attackAttr = player.getAttribute(Attribute.ATTACK_DAMAGE);
 
         NamespacedKey speedKey = new NamespacedKey(plugin, "skip_speed");
         NamespacedKey attackKey = new NamespacedKey(plugin, "skip_attack");
@@ -935,7 +940,7 @@ public class TimeBoundListener implements Listener {
         Location attackerLocation = attacker.getLocation();
         if (attackerLocation != null) {
             attacker.getWorld().spawnParticle(Particle.HEART, attackerLocation.add(0, 1.5, 0), 10, 0.5, 0.5, 0.5, 0.1);
-            attacker.playSound(attackerLocation, Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.8f, 1.2f);
+            playAt(attackerLocation, Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.8f, 1.2f);
         }
         sendColored(attacker, NamedTextColor.LIGHT_PURPLE, "Your health was reversed to 5 seconds ago!");
 
@@ -945,7 +950,7 @@ public class TimeBoundListener implements Listener {
             Location playerLocation = player.getLocation();
             if (playerLocation != null) {
                 player.getWorld().spawnParticle(Particle.PORTAL, playerLocation.add(0, 1.0, 0), 28, 0.5, 0.8, 0.5, 0.1);
-                player.playSound(playerLocation, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 0.6f);
+                playAt(playerLocation, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 0.6f);
             }
         }
     }
@@ -958,26 +963,36 @@ public class TimeBoundListener implements Listener {
         if (damage <= 0) return;
 
         double radius = Math.min(12.0, 3.0 + damage / 4.0);
+        Location origin = player.getLocation();
+        playAt(origin, Sound.ENTITY_GENERIC_EXPLODE, 1.8f, 0.9f);
+        playAt(origin, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.6f, 1.25f);
+        playAt(origin, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.3f, 0.7f);
+        player.getWorld().spawnParticle(Particle.EXPLOSION, origin, 1);
+        player.getWorld().spawnParticle(Particle.SONIC_BOOM, origin.clone().add(0, 1.0, 0), 1);
+        player.getWorld().spawnParticle(Particle.WITCH, origin.clone().add(0, 1.0, 0), 60, radius / 3, 1.0, radius / 3, 0.05);
+
         for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
             if (entity.equals(player) || !(entity instanceof LivingEntity living)) continue;
             if (living instanceof Player p && TrustManager.isTrusted(player, p)) continue;
 
-            double shockwaveDamage = Math.max(2.0, damage * 0.75);
+            double distance = Math.max(1.0, living.getLocation().distance(origin));
+            double falloff = Math.max(0.35, 1.0 - (distance / radius));
+            double shockwaveDamage = Math.min(18.0, Math.max(2.0, damage * 0.75 * falloff));
             living.damage(shockwaveDamage, player);
             living.setVelocity(living.getLocation().toVector()
-                    .subtract(player.getLocation().toVector())
+                    .subtract(origin.toVector())
                     .normalize()
-                    .multiply(1.2));
-            living.getWorld().playSound(living.getLocation(), Sound.ENTITY_GENERIC_HURT, 0.6f, 0.8f);
+                    .multiply(0.8 + falloff * 0.8));
+            living.getWorld().spawnParticle(Particle.REVERSE_PORTAL, living.getLocation().clone().add(0, 1.0, 0), 20, 0.35, 0.6, 0.35, 0.05);
         }
 
         double absorptionAmount = damage * 0.375;
         player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 200, 0, false, true, true));
         if (player instanceof LivingEntity living) {
-            AttributeInstance absorbAttribute = living.getAttribute(Attribute.GENERIC_MAX_ABSORPTION);
+            AttributeInstance absorbAttribute = living.getAttribute(Attribute.MAX_ABSORPTION);
             if (absorbAttribute != null) {
                 double currentHealth = player.getHealth();
-                double maxHealth = player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue();
+                double maxHealth = player.getAttribute(Attribute.MAX_HEALTH).getValue();
                 double targetHealth = Math.min(maxHealth + absorptionAmount, currentHealth + absorptionAmount);
                 if (targetHealth > currentHealth) {
                     player.setAbsorptionAmount(Math.min(absorptionAmount, 16.0));
@@ -985,12 +1000,6 @@ public class TimeBoundListener implements Listener {
             }
         }
 
-        player.getWorld().spawnParticle(Particle.EXPLOSION, player.getLocation(), 1);
-        player.getWorld().spawnParticle(Particle.SONIC_BOOM, player.getLocation().add(0, 1.0, 0), 1);
-        player.getWorld().spawnParticle(Particle.WITCH, player.getLocation().add(0, 1.0, 0), 60, radius / 3, 1.0, radius / 3, 0.05);
-        player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.7f, 1.2f);
-        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 0.8f, 1.4f);
-        player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_HURT, 0.5f, 0.6f);
     }
 
     private void reviveRecentDeaths(Player caster) {
@@ -1272,6 +1281,12 @@ public class TimeBoundListener implements Listener {
 
     private void sendColored(Player player, NamedTextColor color, String message) {
         player.sendMessage(Component.text(message, color));
+    }
+
+    private void playAt(Location location, Sound sound, float volume, float pitch) {
+        if (location.getWorld() != null) {
+            location.getWorld().playSound(location, sound, volume, pitch);
+        }
     }
 
     private void refreshHeldUltMeters() {

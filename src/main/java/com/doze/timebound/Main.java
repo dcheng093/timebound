@@ -13,10 +13,15 @@ public class Main extends JavaPlugin {
     private TimeBoundListener listener;
     private TimeClockListener clockListener;
     private ChunkyMonitor chunkyMonitor;
+    private AdvancementManager advancementManager;
+    private RecipeUnlockListener recipeUnlockListener;
 
     @Override
     public void onEnable() {
         instance = this;
+        saveDefaultConfig();
+        advancementManager = new AdvancementManager(this);
+        advancementManager.registerAdvancements();
         timeManager = new TimeManager(this);
         TimeBladeItems.registerRecipes(this);
         chunkyMonitor = new ChunkyMonitor();
@@ -26,8 +31,9 @@ public class Main extends JavaPlugin {
         clockListener = new TimeClockListener(this);
         getServer().getPluginManager().registerEvents(clockListener, this);
         getServer().getPluginManager().registerEvents(chunkyMonitor, this);
-        getServer().getPluginManager().registerEvents(new TrialSpawnerListener(this), this);
-        getServer().getPluginManager().registerEvents(new RecipeUnlockListener(this), this);
+        getServer().getPluginManager().registerEvents(new TimeItemProtectionListener(this), this);
+        recipeUnlockListener = new RecipeUnlockListener(this);
+        getServer().getPluginManager().registerEvents(recipeUnlockListener, this);
 
         var timeboundCommand = getCommand("timebound");
         if (timeboundCommand != null) {
@@ -89,6 +95,15 @@ public class Main extends JavaPlugin {
     public ChunkyMonitor getChunkyMonitor() {
         return chunkyMonitor;
     }
+
+    public AdvancementManager getAdvancementManager() {
+        return advancementManager;
+    }
+
+    public RecipeUnlockListener getRecipeUnlockListener() {
+        return recipeUnlockListener;
+    }
+
     public NamespacedKey key(String keyName) {
         return new NamespacedKey(this, keyName);
     }

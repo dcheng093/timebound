@@ -1,0 +1,11 @@
+claimed:
+  weapons:
+    freeze: false
+    brake: false
+    skip: false
+    reverse: false
+  clocks:
+    freeze: false
+    brake: false
+    skip: false
+    reverse: false

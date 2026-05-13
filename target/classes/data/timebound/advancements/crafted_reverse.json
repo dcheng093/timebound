@@ -2,9 +2,9 @@
   "parent": "timebound:root",
   "display": {
     "icon": {
-      "item": "netherite_sword"
+      "id": "minecraft:netherite_sword"
     },
-    "title": "Crafted the Reverse Blade",
+    "title": "Master of Reverse",
     "description": "Craft the Time Reverse Blade using the Reverse Clock",
     "frame": "goal",
     "show_toast": true,
