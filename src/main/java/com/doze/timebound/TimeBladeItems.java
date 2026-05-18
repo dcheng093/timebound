@@ -102,7 +102,6 @@ public final class TimeBladeItems {
         NamespacedKey key = recipeKey(plugin, ClockType.FREEZE);
         Bukkit.removeRecipe(key);
         
-        ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.FREEZE);
         ShapedRecipe recipe = new ShapedRecipe(key, createBlade("freeze"));
         
         recipe.shape(
@@ -112,7 +111,7 @@ public final class TimeBladeItems {
         );
         recipe.setIngredient('B', Material.BLUE_ICE);
         recipe.setIngredient('N', Material.SNOWBALL);
-        recipe.setIngredient('C', new org.bukkit.inventory.RecipeChoice.ExactChoice(clockItem));
+        recipe.setIngredient('C', Material.CLOCK);
         recipe.setGroup("time_weapons");
         
         Bukkit.addRecipe(recipe);
@@ -123,7 +122,6 @@ public final class TimeBladeItems {
         NamespacedKey key = recipeKey(plugin, ClockType.BRAKE);
         Bukkit.removeRecipe(key);
         
-        ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.BRAKE);
         ShapedRecipe recipe = new ShapedRecipe(key, createBlade("brake"));
         
         recipe.shape(
@@ -134,7 +132,7 @@ public final class TimeBladeItems {
         recipe.setIngredient('I', Material.IRON_BLOCK);
         recipe.setIngredient('R', Material.REDSTONE_BLOCK);
         recipe.setIngredient('A', Material.ANVIL);
-        recipe.setIngredient('C', new org.bukkit.inventory.RecipeChoice.ExactChoice(clockItem));
+        recipe.setIngredient('C', Material.CLOCK);
         recipe.setGroup("time_weapons");
         
         Bukkit.addRecipe(recipe);
@@ -145,7 +143,6 @@ public final class TimeBladeItems {
         NamespacedKey key = recipeKey(plugin, ClockType.SKIP);
         Bukkit.removeRecipe(key);
         
-        ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.SKIP);
         ShapedRecipe recipe = new ShapedRecipe(key, createBlade("skip"));
         
         recipe.shape(
@@ -155,7 +152,7 @@ public final class TimeBladeItems {
         );
         recipe.setIngredient('G', Material.GOLD_BLOCK);
         recipe.setIngredient('F', Material.FEATHER);
-        recipe.setIngredient('C', new org.bukkit.inventory.RecipeChoice.ExactChoice(clockItem));
+        recipe.setIngredient('C', Material.CLOCK);
         recipe.setGroup("time_weapons");
         
         Bukkit.addRecipe(recipe);
@@ -166,7 +163,6 @@ public final class TimeBladeItems {
         NamespacedKey key = recipeKey(plugin, ClockType.REVERSE);
         Bukkit.removeRecipe(key);
         
-        ItemStack clockItem = TimeClockItems.createClock(plugin, ClockType.REVERSE);
         ShapedRecipe recipe = new ShapedRecipe(key, createBlade("reverse"));
         
         recipe.shape(
@@ -176,7 +172,7 @@ public final class TimeBladeItems {
         );
         recipe.setIngredient('A', Material.AMETHYST_BLOCK);
         recipe.setIngredient('E', Material.END_ROD);
-        recipe.setIngredient('C', new org.bukkit.inventory.RecipeChoice.ExactChoice(clockItem));
+        recipe.setIngredient('C', Material.CLOCK);
         recipe.setGroup("time_weapons");
         
         Bukkit.addRecipe(recipe);
@@ -203,103 +199,121 @@ public final class TimeBladeItems {
     public enum BladeType {
         FREEZE(
                 "freeze",
-                ChatColor.AQUA + "" + ChatColor.BOLD + "Freeze Star",
-                ChatColor.AQUA + "" + ChatColor.BOLD + "Freeze Time Blade",
+                ChatColor.AQUA + "" + ChatColor.BOLD + "Lunar Dial Star",
+                ChatColor.AQUA + "" + ChatColor.BOLD + "Lunar Dial",
                 Material.NETHERITE_SWORD,
                 "freeze_time_blade",
                 List.of(
                         "",
-                        ChatColor.AQUA + "" + ChatColor.BOLD + "ABILITY",
-                        ChatColor.GRAY + "Press F while aiming at an entity.",
-                        ChatColor.WHITE + "Freezes the target for 5 seconds.",
-                        ChatColor.WHITE + "Hits during freeze are stored and released safely.",
-                        ChatColor.DARK_GRAY + "Ability Cooldown: 60 seconds.",
+                        ChatColor.DARK_AQUA + "" + ChatColor.BOLD + "TEMPORAL ARTIFACT",
+                        ChatColor.GRAY + "A weapon that freezes fate itself.",
                         "",
-                        ChatColor.BLUE + "" + ChatColor.BOLD + "ULT",
+                        ChatColor.AQUA + "" + ChatColor.BOLD + "KEYBINDS",
+                        ChatColor.GRAY + "Hold in main hand. Use F.",
+                        ChatColor.WHITE + "F: Time Lock",
+                        ChatColor.WHITE + "Sneak + F: Temporal Domain",
+                        "",
+                        ChatColor.AQUA + "" + ChatColor.BOLD + "SKILL  " + ChatColor.DARK_GRAY + "(60s CD)",
+                        ChatColor.GRAY + "Projectile freeze.",
+                        ChatColor.WHITE + "Stops target movement for 5s.",
+                        ChatColor.WHITE + "Hits are buffered and released after.",
+                        ChatColor.DARK_GRAY + "Buffered hits: max 5 damage per hit, max 5 hearts total.",
+                        "",
+                        ChatColor.BLUE + "" + ChatColor.BOLD + "ULTIMATE  " + ChatColor.DARK_GRAY + "(5 kills, 10s)",
                         ChatColor.GRAY + "Sneak + F.",
-                        ChatColor.WHITE + "Freezes everyone on the server except you.",
-                        ChatColor.DARK_GRAY + "Ultimate Cooldown: Refill full charge after use.",
-                        ChatColor.DARK_GRAY + "Ult Charge: 5 player kills with this blade.",
+                        ChatColor.WHITE + "Freeze the entire world except you.",
+                        ChatColor.WHITE + "Hits become unavoidable.",
                         "",
                         ChatColor.DARK_AQUA + "" + ChatColor.BOLD + "PASSIVE",
-                        ChatColor.WHITE + "Critical hits apply powdered snow pressure.",
-                        ChatColor.WHITE + "Total Freeze Blade damage is capped at 10 hearts."
+                        ChatColor.WHITE + "Critical hits: 5% chance to slow + freeze."
                 )
         ),
         BRAKE(
                 "brake",
-                ChatColor.DARK_GRAY + "" + ChatColor.BOLD + "Time Brake Star",
-                ChatColor.DARK_GRAY + "" + ChatColor.BOLD + "Time Brake Mace",
+                ChatColor.DARK_GRAY + "" + ChatColor.BOLD + "Chrono Lock Star",
+                ChatColor.DARK_GRAY + "" + ChatColor.BOLD + "Chrono Lock",
                 Material.MACE,
                 "time_brake_blade",
                 List.of(
                         "",
-                        ChatColor.GRAY + "" + ChatColor.BOLD + "ABILITY",
-                        ChatColor.GRAY + "Press F while aiming at an entity.",
-                        ChatColor.WHITE + "Applies heavy slowness, weakness, and glow.",
-                        ChatColor.WHITE + "Players cannot sprint and lose shield use for 10s.",
-                        ChatColor.DARK_GRAY + "Ability Cooldown: 60 seconds.",
+                        ChatColor.DARK_AQUA + "" + ChatColor.BOLD + "TEMPORAL ARTIFACT",
+                        ChatColor.GRAY + "A weapon that weakens time's defenders.",
                         "",
-                        ChatColor.DARK_GRAY + "" + ChatColor.BOLD + "ULT",
+                        ChatColor.DARK_GRAY + "" + ChatColor.BOLD + "KEYBINDS",
+                        ChatColor.GRAY + "Hold in main hand. Use F.",
+                        ChatColor.WHITE + "F: Neutralize",
+                        ChatColor.WHITE + "Sneak + F: Temporal Deceleration",
+                        "",
+                        ChatColor.GRAY + "" + ChatColor.BOLD + "SKILL  " + ChatColor.DARK_GRAY + "(60s CD)",
+                        ChatColor.GRAY + "Weaken a target and disable shields.",
+                        ChatColor.WHITE + "Weakness + Slowness (5s).",
+                        ChatColor.WHITE + "Shield stun/disable.",
+                        "",
+                        ChatColor.DARK_GRAY + "" + ChatColor.BOLD + "ULTIMATE  " + ChatColor.DARK_GRAY + "(5 kills, 10s)",
                         ChatColor.GRAY + "Sneak + F.",
-                        ChatColor.WHITE + "Slows everyone on the server except you.",
-                        ChatColor.DARK_GRAY + "Ultimate Cooldown: Refill full charge after use.",
-                        ChatColor.DARK_GRAY + "Ult Charge: 5 player kills with this mace.",
+                        ChatColor.WHITE + "Everything becomes slowed and weakened.",
+                        ChatColor.WHITE + "Hits become unavoidable.",
                         "",
                         ChatColor.BLACK + "" + ChatColor.BOLD + "PASSIVE",
-                        ChatColor.WHITE + "15% chance to inflict weakness and glow on hit."
+                        ChatColor.WHITE + "15% chance on hit: weaken enemy."
                 )
         ),
         SKIP(
                 "skip",
-                ChatColor.YELLOW + "" + ChatColor.BOLD + "Time Skip Star",
-                ChatColor.YELLOW + "" + ChatColor.BOLD + "Time Skip Blade",
+                ChatColor.YELLOW + "" + ChatColor.BOLD + "Flashstep Star",
+                ChatColor.YELLOW + "" + ChatColor.BOLD + "Flashstep",
                 Material.NETHERITE_SWORD,
                 "time_skip_blade",
                 List.of(
                         "",
-                        ChatColor.YELLOW + "" + ChatColor.BOLD + "ABILITY",
-                        ChatColor.GRAY + "Press F.",
-                        ChatColor.WHITE + "Instant safe teleport up to 14 blocks.",
-                        ChatColor.DARK_GRAY + "Ability Cooldown: 3 seconds.",
-                        ChatColor.DARK_GRAY + "Ability Charges: 3 (Restores 1 every 10s)",
+                        ChatColor.DARK_AQUA + "" + ChatColor.BOLD + "TEMPORAL ARTIFACT",
+                        ChatColor.GRAY + "A blade that outruns the present.",
                         "",
-                        ChatColor.GOLD + "" + ChatColor.BOLD + "ULT",
+                        ChatColor.YELLOW + "" + ChatColor.BOLD + "KEYBINDS",
+                        ChatColor.GRAY + "Hold in main hand. Use F.",
+                        ChatColor.WHITE + "F: Transmission",
+                        ChatColor.WHITE + "Sneak + F: Time Acceleration",
+                        "",
+                        ChatColor.YELLOW + "" + ChatColor.BOLD + "SKILL  " + ChatColor.DARK_GRAY + "(3s CD, 3 charges)",
+                        ChatColor.GRAY + "Directional teleport (14 blocks).",
+                        ChatColor.DARK_GRAY + "Regen: 1 charge / 10s (full in 10s).",
+                        "",
+                        ChatColor.GOLD + "" + ChatColor.BOLD + "ULTIMATE  " + ChatColor.DARK_GRAY + "(5 kills, 10s)",
                         ChatColor.GRAY + "Sneak + F.",
-                        ChatColor.WHITE + "Slows everyone while giving you Speed IV.",
-                        ChatColor.DARK_GRAY + "Ultimate Cooldown: Refill full charge after use.",
-                        ChatColor.DARK_GRAY + "Ult Charge: 5 player kills with this blade.",
+                        ChatColor.WHITE + "You become faster than everything.",
+                        ChatColor.WHITE + "Others appear slowed.",
                         "",
                         ChatColor.RED + "" + ChatColor.BOLD + "PASSIVE",
-                        ChatColor.WHITE + "Hits build speed and damage stacks.",
-                        ChatColor.WHITE + "Capped at Speed 5 and Strength 2.",
-                        ChatColor.WHITE + "Taking damage lowers stacks one at a time."
+                        ChatColor.WHITE + "Critical hits grant Velocity Stacks (max 10).",
+                        ChatColor.DARK_GRAY + "Taking damage removes 1 stack."
                 )
         ),
         REVERSE(
                 "reverse",
-                ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "Reverse Star",
-                ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "Time Reverse Blade",
+                ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "Requiem Star",
+                ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "Requiem",
                 Material.NETHERITE_SWORD,
                 "time_reverse_blade",
                 List.of(
                         "",
-                        ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "ABILITY",
-                        ChatColor.GRAY + "Press F.",
-                        ChatColor.WHITE + "Absorbs incoming damage for 5 seconds.",
-                        ChatColor.WHITE + "Releases AoE damage, knockback, particles, and sound.",
-                        ChatColor.DARK_GRAY + "Ability Cooldown: 30 seconds.",
+                        ChatColor.DARK_AQUA + "" + ChatColor.BOLD + "TEMPORAL ARTIFACT",
+                        ChatColor.GRAY + "A blade that remembers what you lost.",
                         "",
-                        ChatColor.DARK_PURPLE + "" + ChatColor.BOLD + "ULT",
+                        ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "KEYBINDS",
+                        ChatColor.GRAY + "Hold in main hand. Use F.",
+                        ChatColor.WHITE + "F: Shock Absorb",
+                        ChatColor.WHITE + "Sneak + F: Bites The Dust",
+                        "",
+                        ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "SKILL  " + ChatColor.DARK_GRAY + "(30s CD)",
+                        ChatColor.GRAY + "Absorb damage, then release a shockwave.",
+                        "",
+                        ChatColor.DARK_PURPLE + "" + ChatColor.BOLD + "ULTIMATE  " + ChatColor.DARK_GRAY + "(5 kills)",
                         ChatColor.GRAY + "Sneak + F.",
-                        ChatColor.WHITE + "Rewinds nearby blocks and entities 5 seconds.",
-                        ChatColor.WHITE + "Can revive players who just died.",
-                        ChatColor.DARK_GRAY + "Ultimate Cooldown: Refill full charge after use.",
-                        ChatColor.DARK_GRAY + "Ult Charge: 5 player kills with this blade.",
+                        ChatColor.WHITE + "Rewind everything within 50 blocks by 5 seconds.",
+                        ChatColor.DARK_GRAY + "Can revive very recent deaths.",
                         "",
                         ChatColor.DARK_RED + "" + ChatColor.BOLD + "PASSIVE",
-                        ChatColor.WHITE + "5% chance to restore your health to 5s ago",
-                        ChatColor.WHITE + "and reverse the target's movement."
+                        ChatColor.WHITE + "Critical hits: 3-5% chance to rewind your health 5 seconds."
                 )
         );
 

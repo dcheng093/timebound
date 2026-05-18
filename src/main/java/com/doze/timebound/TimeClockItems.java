@@ -25,51 +25,54 @@ public final class TimeClockItems {
         if (meta == null) return item;
 
         meta.displayName(Component.text(type.displayName(), type.color()));
-        
+
         List<Component> lore = switch (type) {
             case FREEZE -> List.of(
-                    Component.text("Ultimate Time-Freezing Device", NamedTextColor.AQUA),
+                    Component.text("A pocket clock that controls time.", NamedTextColor.AQUA),
                     Component.text(""),
-                    Component.text("ABILITY: Right-click", NamedTextColor.WHITE),
-                    Component.text("Freezes target in powdered snow", NamedTextColor.GRAY),
-                    Component.text("Cooldown: 60 seconds", NamedTextColor.DARK_GRAY),
+                    Component.text("KEYBINDS", NamedTextColor.AQUA),
+                    Component.text("Hold in offhand.", NamedTextColor.GRAY),
+                    Component.text("F: Time Stop", NamedTextColor.WHITE),
                     Component.text(""),
-                    Component.text("PASSIVE: Critical Hits", NamedTextColor.AQUA),
-                    Component.text("Applies powdered snow damage on critical hits", NamedTextColor.GRAY),
-                    Component.text("Freeze Blade damage cap: 10 hearts", NamedTextColor.DARK_GRAY)
+                    Component.text("ABILITY", NamedTextColor.WHITE),
+                    Component.text("Freeze everything in range for 5 seconds.", NamedTextColor.GRAY),
+                    Component.text("After: freezing effect for 10 seconds.", NamedTextColor.DARK_GRAY),
+                    Component.text("Cooldown: 180 seconds.", NamedTextColor.DARK_GRAY)
             );
             case BRAKE -> List.of(
-                    Component.text("Temporal Brake Mechanism", NamedTextColor.DARK_GRAY),
+                    Component.text("A clock that breaks time.", NamedTextColor.DARK_GRAY),
                     Component.text(""),
-                    Component.text("ABILITY: Right-click", NamedTextColor.WHITE),
-                    Component.text("Applies Weakness and Glowing effect", NamedTextColor.GRAY),
-                    Component.text("Disables shields and sprint", NamedTextColor.DARK_GRAY),
-                    Component.text("Cooldown: 60 seconds", NamedTextColor.DARK_GRAY),
+                    Component.text("KEYBINDS", NamedTextColor.GRAY),
+                    Component.text("Hold in offhand.", NamedTextColor.DARK_GRAY),
+                    Component.text("F: Time Shatter", NamedTextColor.WHITE),
                     Component.text(""),
-                    Component.text("PASSIVE: Weakening Strikes", NamedTextColor.DARK_GRAY),
-                    Component.text("15% chance to inflict Weakness", NamedTextColor.GRAY)
+                    Component.text("ABILITY", NamedTextColor.WHITE),
+                    Component.text("Slow and weaken a target.", NamedTextColor.GRAY),
+                    Component.text("Range: 30 blocks (line of sight).", NamedTextColor.DARK_GRAY),
+                    Component.text("Cooldown: 60 seconds.", NamedTextColor.DARK_GRAY),
+                    Component.text("Applies: Slowness II, Weakness I, Glowing.", NamedTextColor.DARK_GRAY)
             );
             case SKIP -> List.of(
-                    Component.text("Temporal Skip Protocol", NamedTextColor.YELLOW),
+                    Component.text("A stopwatch that speeds up the flow of time.", NamedTextColor.YELLOW),
                     Component.text(""),
-                    Component.text("ABILITY: Right-click to Dash", NamedTextColor.WHITE),
-                    Component.text("Teleports up to 14 blocks forward", NamedTextColor.GRAY),
-                    Component.text("3 charges (Restores 1 every 10s)", NamedTextColor.DARK_GRAY),
+                    Component.text("KEYBINDS", NamedTextColor.YELLOW),
+                    Component.text("Hold in offhand.", NamedTextColor.DARK_GRAY),
+                    Component.text("F: Time Skip", NamedTextColor.WHITE),
                     Component.text(""),
-                    Component.text("PASSIVE: Speed Stacking", NamedTextColor.YELLOW),
-                    Component.text("Critical hits build speed and damage", NamedTextColor.GRAY),
-                    Component.text("Max Speed 5 and Strength 2", NamedTextColor.DARK_GRAY)
+                    Component.text("ABILITY", NamedTextColor.WHITE),
+                    Component.text("Directional teleport (8 blocks) + Speed III (8s).", NamedTextColor.GRAY),
+                    Component.text("Cooldown: 45 seconds.", NamedTextColor.DARK_GRAY)
             );
             case REVERSE -> List.of(
-                    Component.text("Temporal Rewind Engine", NamedTextColor.LIGHT_PURPLE),
+                    Component.text("A clock that rewinds anything.", NamedTextColor.LIGHT_PURPLE),
                     Component.text(""),
-                    Component.text("ABILITY: Right-click to Absorb", NamedTextColor.WHITE),
-                    Component.text("Absorbs incoming damage for 5s", NamedTextColor.GRAY),
-                    Component.text("Releases shockwave after absorption", NamedTextColor.DARK_GRAY),
-                    Component.text("Cooldown: 30 seconds", NamedTextColor.DARK_GRAY),
+                    Component.text("KEYBINDS", NamedTextColor.LIGHT_PURPLE),
+                    Component.text("Hold in offhand.", NamedTextColor.DARK_GRAY),
+                    Component.text("F: Roundabout", NamedTextColor.WHITE),
                     Component.text(""),
-                    Component.text("PASSIVE: Rewind Health", NamedTextColor.LIGHT_PURPLE),
-                    Component.text("5% chance to revert health to 5s ago", NamedTextColor.GRAY)
+                    Component.text("ABILITY", NamedTextColor.WHITE),
+                    Component.text("Heal 2.5 hearts and restore saturation.", NamedTextColor.GRAY),
+                    Component.text("Cooldown: 45 seconds.", NamedTextColor.DARK_GRAY)
             );
         };
         

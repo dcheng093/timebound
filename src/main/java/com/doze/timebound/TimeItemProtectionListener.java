@@ -6,34 +6,34 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Sound;
-import org.bukkit.World;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.ItemSpawnEvent;
+import org.bukkit.event.entity.EntityRemoveEvent;
+import org.bukkit.event.entity.ItemDespawnEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.Vector;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
 public class TimeItemProtectionListener implements Listener {
     private final Main plugin;
-    private final Set<UUID> announcedDestroyedItems = new HashSet<>();
+    private final Set<UUID> announcedRescues = new HashSet<>();
 
     public TimeItemProtectionListener(Main plugin) {
         this.plugin = plugin;
-        Bukkit.getScheduler().runTaskTimer(plugin, this::protectLoadedItemEntities, 20L, 100L);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -41,32 +41,47 @@ public class TimeItemProtectionListener implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> removeTimeItemsFromEnderChest(plugin, event.getPlayer()));
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onDrop(PlayerDropItemEvent event) {
-        protectItemEntity(event.getItemDrop());
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onItemSpawn(ItemSpawnEvent event) {
-        protectItemEntity(event.getEntity());
-    }
-
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onItemDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Item item)) return;
         if (!TimeBoundItems.isTimeItem(plugin, item.getItemStack())) return;
 
+        // Time items are indestructible.
+        event.setCancelled(true);
+
         EntityDamageEvent.DamageCause cause = event.getCause();
         if (isFireOrLava(cause)) {
-            event.setCancelled(true);
-            item.setFireTicks(0);
-            protectItemEntity(item);
+            rescueItem(item, "was saved from lava/fire");
             return;
         }
 
-        if (cause == EntityDamageEvent.DamageCause.VOID || cause == EntityDamageEvent.DamageCause.CONTACT) {
-            announceDestroyed(item, cause == EntityDamageEvent.DamageCause.VOID ? "fell into the void" : "was destroyed by a cactus");
+        if (cause == EntityDamageEvent.DamageCause.VOID) {
+            rescueItem(item, "was pulled back from the void");
+            return;
         }
+
+        if (cause == EntityDamageEvent.DamageCause.CONTACT) {
+            rescueItem(item, "was saved from a cactus");
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onDespawn(ItemDespawnEvent event) {
+        Item item = event.getEntity();
+        if (!TimeBoundItems.isTimeItem(plugin, item.getItemStack())) return;
+        event.setCancelled(true);
+        try {
+            item.setUnlimitedLifetime(true);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onEntityRemove(EntityRemoveEvent event) {
+        if (!(event.getEntity() instanceof Item item)) return;
+        if (!TimeBoundItems.isTimeItem(plugin, item.getItemStack())) return;
+        // Covers clears, despawns, plugin removals, etc. We treat it as a trigger to refresh the global registry.
+        Bukkit.getScheduler().runTask(plugin, () -> plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.DESTRUCTION));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -137,39 +152,43 @@ public class TimeItemProtectionListener implements Listener {
         player.updateInventory();
     }
 
-    private void protectLoadedItemEntities() {
-        for (World world : Bukkit.getWorlds()) {
-            for (Item item : world.getEntitiesByClass(Item.class)) {
-                protectItemEntity(item);
-            }
-        }
-    }
 
-    private void protectItemEntity(Item item) {
-        if (!TimeBoundItems.isTimeItem(plugin, item.getItemStack())) return;
-        item.setFireTicks(0);
-        item.setUnlimitedLifetime(true);
-    }
 
     private boolean isFireOrLava(EntityDamageEvent.DamageCause cause) {
         return cause == EntityDamageEvent.DamageCause.LAVA
                 || cause == EntityDamageEvent.DamageCause.FIRE
                 || cause == EntityDamageEvent.DamageCause.FIRE_TICK
-                || cause == EntityDamageEvent.DamageCause.HOT_FLOOR;
+                || cause == EntityDamageEvent.DamageCause.HOT_FLOOR
+                || cause == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION
+                || cause == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION;
     }
 
-    private void announceDestroyed(Item item, String reason) {
-        if (!announcedDestroyedItems.add(item.getUniqueId())) return;
+    private void rescueItem(Item item, String reason) {
+        // Keep messaging rate-limited per entity.
+        if (!announcedRescues.add(item.getUniqueId())) return;
+
+        // Push upwards slightly and extinguish.
+        try {
+            item.setFireTicks(0);
+        } catch (Throwable ignored) {
+        }
+        item.setVelocity(new Vector(0, Math.max(0.12, item.getVelocity().getY()), 0));
+
+        // If in void-ish, teleport to world spawn.
+        Location loc = item.getLocation();
+        if (loc.getY() < -64) {
+            item.teleport(item.getWorld().getSpawnLocation().clone().add(0, 1.0, 0));
+        }
 
         String name = TimeBoundItems.displayName(plugin, item.getItemStack());
         Component message = Component.text(name, NamedTextColor.GOLD)
-                .append(Component.text(" " + reason + ".", NamedTextColor.RED));
+                .append(Component.text(" " + reason + ".", NamedTextColor.AQUA));
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             player.sendMessage(message);
-            player.playSound(player.getLocation(), Sound.ENTITY_WITHER_DEATH, 0.5f, 1.8f);
+            player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 0.35f, 1.6f);
         }
-        plugin.getLogger().warning(name + " " + reason + ".");
+        plugin.getLogger().info(name + " " + reason + ".");
     }
 
     private static void giveOrDrop(Main plugin, Player player, ItemStack item) {

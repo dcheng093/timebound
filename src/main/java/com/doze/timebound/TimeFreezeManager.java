@@ -1,17 +1,21 @@
 package com.doze.timebound;
 
 import org.bukkit.Location;
+import org.bukkit.Bukkit;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 import java.util.*;
 
 public class TimeFreezeManager {
-    private static final double MAX_FREEZE_BLADE_DAMAGE = 20.0;
+    // Total buffered damage that can be released when a freeze ends (5 hearts).
+    private static final double MAX_FREEZE_BLADE_DAMAGE = 10.0;
 
     private static final Set<UUID> frozen = new HashSet<>();
     private static final Map<UUID, Location> lockedLocation = new HashMap<>();
@@ -20,6 +24,30 @@ public class TimeFreezeManager {
     private static final Map<UUID, Player> damageSourceBuffer = new HashMap<>();
     private static final Map<UUID, ItemStack> weaponBuffer = new HashMap<>();
     private static final Map<UUID, Vector> knockbackBuffer = new HashMap<>();
+
+    private static BukkitTask lockTask;
+
+    /**
+     * Starts the freeze lock loop (main-thread). This iterates only the frozen UUID set,
+     * not all entities in all worlds.
+     */
+    public static synchronized void start(Plugin plugin) {
+        if (lockTask != null) return;
+        lockTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (frozen.isEmpty()) return;
+            // Snapshot to avoid CME if freeze/unfreeze happens during iteration.
+            UUID[] ids = frozen.toArray(new UUID[0]);
+            for (UUID id : ids) {
+                Entity e = Bukkit.getEntity(id);
+                if (e == null || !e.isValid()) {
+                    frozen.remove(id);
+                    lockedLocation.remove(id);
+                    continue;
+                }
+                lockPosition(e);
+            }
+        }, 1L, 1L);
+    }
 
     public static void freeze(Entity e) {
         frozen.add(e.getUniqueId());

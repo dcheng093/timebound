@@ -19,3 +19,6 @@ permissions:
   timebound.admin:
     description: Access to TimeBound admin commands
     default: op
+  timebound.test:
+    description: Toggle TimeBound duplicate restriction test mode
+    default: op

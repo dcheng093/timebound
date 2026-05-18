@@ -1,14 +1,18 @@
 package com.doze.timebound;
 
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
 public final class TimeBoundItems {
+    public static final String MASTER_KEY = "master_of_time";
+
     private TimeBoundItems() {
     }
 
     public static boolean isTimeItem(Main plugin, ItemStack item) {
-        return getWeaponType(item) != null || getClockType(plugin, item) != null;
+        return getWeaponType(item) != null || getClockType(plugin, item) != null || isMasterOfTime(plugin, item);
     }
 
     public static String getWeaponType(ItemStack item) {
@@ -20,13 +24,17 @@ public final class TimeBoundItems {
     }
 
     public static String displayName(Main plugin, ItemStack item) {
+        if (isMasterOfTime(plugin, item)) {
+            return "Eternity";
+        }
+
         String weaponType = getWeaponType(item);
         if (weaponType != null) {
             return switch (weaponType) {
-                case "freeze" -> "Freeze Time Blade";
-                case "brake" -> "Time Brake Mace";
-                case "skip" -> "Time Skip Blade";
-                case "reverse" -> "Time Reverse Blade";
+                case "freeze" -> "Lunar Dial";
+                case "brake" -> "Chrono Lock";
+                case "skip" -> "Flashstep";
+                case "reverse" -> "Requiem";
                 default -> "Time Weapon";
             };
         }
@@ -41,5 +49,10 @@ public final class TimeBoundItems {
 
     public static boolean isEmpty(ItemStack item) {
         return item == null || item.getType() == Material.AIR;
+    }
+
+    public static boolean isMasterOfTime(Main plugin, ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return false;
+        return item.getItemMeta().getPersistentDataContainer().has(new NamespacedKey(plugin, MASTER_KEY), PersistentDataType.BYTE);
     }
 }

@@ -13,8 +13,12 @@ import java.util.UUID;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
 
 public class TimeManager {
 
@@ -22,7 +26,35 @@ public class TimeManager {
     private final List<BlockRecord> blockHistory = new ArrayList<>();
     private final Set<UUID> rewindingEntities = new HashSet<>();
 
+    // Tracking task (main thread).
+    private BukkitTask trackTask;
+
     public TimeManager(Main plugin) {}
+
+    /**
+     * Starts lightweight tracking. This intentionally does not iterate every entity in every world every tick.
+     *
+     * We track:
+     * - All online players every tick (for Requiem/Eternity rewind mechanics).
+     * - Nearby living entities around players every 5 ticks (bounded by player count).
+     */
+    public synchronized void start(Plugin plugin) {
+        if (trackTask != null) return;
+        trackTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            // Players every tick.
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                trackEntity(p);
+            }
+            // Nearby living entities less frequently to reduce load.
+            if ((Bukkit.getCurrentTick() % 5) != 0) return;
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                for (LivingEntity le : p.getWorld().getNearbyLivingEntities(p.getLocation(), 32, 16, 32)) {
+                    if (le instanceof Player) continue;
+                    trackEntity(le);
+                }
+            }
+        }, 1L, 1L);
+    }
 
     public void setRewinding(Entity e, boolean rewinding) {
         if (rewinding) rewindingEntities.add(e.getUniqueId());
@@ -52,10 +84,28 @@ public class TimeManager {
             e.teleport(past.location);
         }
     }
+
+    /**
+     * Instant rewind to an older sample without consuming history.
+     * @param ticksBack roughly how many ticks to go back (clamped to stored window)
+     */
+    public EntityState peekPast(Entity e, int ticksBack) {
+        Deque<EntityState> list = entityHistory.get(e.getUniqueId());
+        if (list == null || list.isEmpty()) return null;
+        int idx = Math.max(0, Math.min(ticksBack, list.size() - 1));
+        // Deque doesn't support random access; walk.
+        int i = 0;
+        for (EntityState s : list) {
+            if (i == idx) return s;
+            i++;
+        }
+        return null;
+    }
     public void rewindHealth(LivingEntity e, int ticks) {
     Deque<EntityState> list = entityHistory.get(e.getUniqueId());
     if (list == null || list.isEmpty()) return;
 
+    // Oldest sample within our window (100 ticks) approximates "rewind within N seconds".
     EntityState past = list.peekLast();
     if (past != null) {
         var maxHealthAttr = e.getAttribute(Attribute.MAX_HEALTH);

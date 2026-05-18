@@ -51,25 +51,72 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 sendColored(p, NamedTextColor.RED, "You do not have permission to use this command.");
                 return true;
             }
-            if (args.length < 2) {
-                sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give weapons <freeze|brake|reverse|skip>");
+
+            if (args.length < 3) {
+                sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give weapon <player> <freeze|brake|reverse|skip|master>");
+                sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give clock <player> <freeze|brake|reverse|skip>");
+                sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give weapons <freeze|brake|reverse|skip|master>");
                 sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give clocks <freeze|brake|reverse|skip>");
                 return true;
             }
-            String itemType = args[1].toLowerCase();
-            if (!itemType.equals("weapons") && !itemType.equals("clocks")) {
-                sendColored(p, NamedTextColor.RED, "Use 'weapons' or 'clocks'.");
+
+            String type = args[1].toLowerCase(Locale.ROOT);
+            boolean isWeapon = type.equals("weapon") || type.equals("weapons");
+            boolean isClock = type.equals("clock") || type.equals("clocks");
+            if (!isWeapon && !isClock) {
+                sendColored(p, NamedTextColor.RED, "Use 'weapon(s)' or 'clock(s)'.");
                 return true;
             }
-            if (args.length < 3) {
-                sendColored(p, NamedTextColor.RED, "Usage: /timebound give " + itemType + " <freeze|brake|reverse|skip>");
-                return true;
-            }
-            if (itemType.equals("weapons")) {
-                giveWeapon(p, args[2].toLowerCase());
+
+            // New admin syntax: /timebound give weapon <player> <weapon>
+            // Back-compat: /timebound give weapons <weapon> (gives to self)
+            Player target = p;
+            String itemArg;
+            if (args.length >= 4) {
+                Player found = Bukkit.getPlayer(args[2]);
+                if (found == null) {
+                    sendColored(p, NamedTextColor.RED, "Player not found.");
+                    return true;
+                }
+                target = found;
+                itemArg = args[3].toLowerCase(Locale.ROOT);
             } else {
-                giveClock(p, args[2].toLowerCase());
+                itemArg = args[2].toLowerCase(Locale.ROOT);
             }
+
+            if (isWeapon) {
+                giveWeapon(target, itemArg, true);
+            } else {
+                giveClock(target, itemArg);
+            }
+            return true;
+        }
+
+        if (sub.equals("test")) {
+            if (!p.hasPermission("timebound.test") && !p.isOp()) {
+                sendColored(p, NamedTextColor.RED, "You do not have permission to use this command.");
+                return true;
+            }
+            if (args.length < 2) {
+                sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound test <on|off>");
+                return true;
+            }
+            boolean enable = args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("true") || args[1].equalsIgnoreCase("enable");
+            boolean disable = args[1].equalsIgnoreCase("off") || args[1].equalsIgnoreCase("false") || args[1].equalsIgnoreCase("disable");
+            if (!enable && !disable) {
+                sendColored(p, NamedTextColor.RED, "Usage: /timebound test <on|off>");
+                return true;
+            }
+
+            Main main = Main.getInstance();
+            if (main == null) return true;
+            main.getConfig().set("testMode", enable);
+            main.saveConfig();
+
+            Component msg = Component.text("TimeBound Test Mode is now ", NamedTextColor.YELLOW)
+                    .append(Component.text(enable ? "ON" : "OFF", enable ? NamedTextColor.GREEN : NamedTextColor.RED));
+            Bukkit.broadcast(msg);
+            main.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.ADMIN);
             return true;
         }
 
@@ -162,30 +209,52 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    private void giveWeapon(Player player, String type) {
-        ClockType clockType = ClockType.fromKey(type);
-        if (clockType == null) {
-            sendColored(player, NamedTextColor.RED, "Unknown type. Use freeze, brake, reverse, or skip.");
+    private void giveWeapon(Player player, String type, boolean adminBypassAllowed) {
+        Main main = Main.getInstance();
+        if (main == null) return;
+
+        boolean isMaster = type.equalsIgnoreCase("master") || type.equalsIgnoreCase("masteroftime") || type.equalsIgnoreCase("master_of_time");
+        if (isMaster) {
+            boolean testMode = main.getConfig().getBoolean("testMode", false);
+            if (main.getGlobalRegistry().anyMasterExists() && !testMode && !adminBypassAllowed) {
+                sendColored(player, NamedTextColor.RED, "Eternity already exists.");
+                return;
+            }
+            if (main.getGlobalRegistry().anyMasterExists() && (testMode || adminBypassAllowed)) {
+                main.getGlobalRegistry().logDuplicateViolation(player.getName() + " used /timebound give to create duplicate Eternity.");
+            }
+            ItemStack item = MasterOfTimeItems.createCrafted(main);
+            player.getInventory().addItem(item);
+            player.sendMessage(Component.text("Given: Eternity", NamedTextColor.GREEN));
+            main.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.ADMIN);
             return;
         }
-        Main main = Main.getInstance();
-        if (main != null && main.getConfig().getBoolean("claimed.weapons." + clockType.key(), false)) {
-            sendColored(player, NamedTextColor.RED, "That legendary weapon already exists.");
+
+        ClockType clockType = ClockType.fromKey(type);
+        if (clockType == null) {
+            sendColored(player, NamedTextColor.RED, "Unknown type. Use freeze, brake, reverse, skip, or master.");
             return;
+        }
+
+        boolean testMode = main.getConfig().getBoolean("testMode", false);
+        if (main.getGlobalRegistry().anyWeaponExists(clockType.key())) {
+            if (!testMode && !adminBypassAllowed) {
+                sendColored(player, NamedTextColor.RED, "That legendary weapon already exists.");
+                return;
+            }
+            main.getGlobalRegistry().logDuplicateViolation(player.getName() + " used /timebound give to create duplicate weapon: " + clockType.key());
         }
         ItemStack item = TimeBladeItems.createBlade(type);
         if (item == null) {
             sendColored(player, NamedTextColor.RED, "Failed to create weapon.");
             return;
         }
-        if (main != null) {
-            main.getConfig().set("claimed.weapons." + clockType.key(), true);
-            main.saveConfig();
-        }
+        TimeItemUid.ensure(main, item);
         player.getInventory().addItem(item);
         Component name = item.getItemMeta().displayName();
         if (name == null) name = Component.text(clockType.displayName(), NamedTextColor.GRAY);
         player.sendMessage(Component.text("Given: ", NamedTextColor.GREEN).append(name));
+        main.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.ADMIN);
     }
 
     private void giveClock(Player player, String type) {
@@ -195,19 +264,30 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             return;
         }
         Main main = Main.getInstance();
-        if (main != null && main.getConfig().getBoolean("claimed.clocks." + clockType.key(), false)) {
-            sendColored(player, NamedTextColor.RED, "That Time Clock has already been claimed.");
+        if (main == null) return;
+
+        // Bugfix requirement: only prevent duplicates of the same clock type in the same player's inventory.
+        if (playerHasClock(player, clockType)) {
+            sendColored(player, NamedTextColor.RED, "You already have a " + clockType.displayName() + ".");
             return;
         }
         ItemStack item = TimeClockItems.createClock(Main.getInstance(), clockType);
-        if (main != null) {
-            main.getConfig().set("claimed.clocks." + clockType.key(), true);
-            main.saveConfig();
-        }
+        TimeItemUid.ensure(main, item);
         player.getInventory().addItem(item);
         Component name = item.getItemMeta().displayName();
         if (name == null) name = Component.text(clockType.displayName(), NamedTextColor.GRAY);
         player.sendMessage(Component.text("Given: ", NamedTextColor.GREEN).append(name));
+        main.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.ADMIN);
+    }
+
+    private boolean playerHasClock(Player player, ClockType type) {
+        ItemStack[] contents = player.getInventory().getContents();
+        if (contents != null) {
+            for (ItemStack item : contents) {
+                if (TimeClockItems.getClockType(Main.getInstance(), item) == type) return true;
+            }
+        }
+        return TimeClockItems.getClockType(Main.getInstance(), player.getInventory().getItemInOffHand()) == type;
     }
 
     private void sendUsage(CommandSender sender) {
@@ -218,6 +298,7 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Component.text("/timebound spawnclock <type>", NamedTextColor.YELLOW).append(Component.text(" - spawn a clickable clock", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/timebound cooldowns [player]", NamedTextColor.YELLOW).append(Component.text(" - reset blade/clock cooldowns", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/timebound clearstacks [player]", NamedTextColor.YELLOW).append(Component.text(" - clear Time Skip stacks", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/timebound test <on|off>", NamedTextColor.YELLOW).append(Component.text(" - toggle duplicate restriction test mode", NamedTextColor.GRAY)));
         }
     }
 
@@ -243,6 +324,7 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 out.add("spawnclock");
                 out.add("cooldowns");
                 out.add("clearstacks");
+                out.add("test");
             }
             return filter(out, last);
         }
@@ -259,6 +341,8 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             }
             if (sub.equals("give")) {
                 if (!admin) return Collections.emptyList();
+                out.add("weapon");
+                out.add("clock");
                 out.add("weapons");
                 out.add("clocks");
                 return filter(out, last);
@@ -269,6 +353,12 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             if (sub.equals("cooldowns") || sub.equals("clearstacks")) {
                 if (!admin) return Collections.emptyList();
                 for (Player p : Bukkit.getOnlinePlayers()) out.add(p.getName());
+                return filter(out, last);
+            }
+            if (sub.equals("test")) {
+                if (!admin) return Collections.emptyList();
+                out.add("on");
+                out.add("off");
                 return filter(out, last);
             }
         }
@@ -285,8 +375,42 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             }
             if (sub.equals("give")) {
                 if (!admin) return Collections.emptyList();
-                String type = args[1].toLowerCase(Locale.ROOT);
-                if (type.equals("weapons") || type.equals("clocks")) {
+                String kind = args[1].toLowerCase(Locale.ROOT);
+                if (kind.equals("weapon") || kind.equals("clock")) {
+                    for (Player p : Bukkit.getOnlinePlayers()) out.add(p.getName());
+                    return filter(out, last);
+                }
+                if (kind.equals("weapons")) {
+                    out.add("freeze");
+                    out.add("brake");
+                    out.add("reverse");
+                    out.add("skip");
+                    out.add("master");
+                    return filter(out, last);
+                }
+                if (kind.equals("clocks")) {
+                    out.add("freeze");
+                    out.add("brake");
+                    out.add("reverse");
+                    out.add("skip");
+                    return filter(out, last);
+                }
+            }
+        }
+        if (args.length == 4) {
+            String sub = args[0].toLowerCase(Locale.ROOT);
+            if (sub.equals("give")) {
+                if (!admin) return Collections.emptyList();
+                String kind = args[1].toLowerCase(Locale.ROOT);
+                if (kind.equals("weapon")) {
+                    out.add("freeze");
+                    out.add("brake");
+                    out.add("reverse");
+                    out.add("skip");
+                    out.add("master");
+                    return filter(out, last);
+                }
+                if (kind.equals("clock")) {
                     out.add("freeze");
                     out.add("brake");
                     out.add("reverse");

@@ -2,8 +2,6 @@ package com.doze.timebound;
 
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
-import org.bukkit.World;
-import org.bukkit.entity.Entity;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class Main extends JavaPlugin {
@@ -12,9 +10,11 @@ public class Main extends JavaPlugin {
     private TimeManager timeManager;
     private TimeBoundListener listener;
     private TimeClockListener clockListener;
-    private ChunkyMonitor chunkyMonitor;
     private AdvancementManager advancementManager;
     private RecipeUnlockListener recipeUnlockListener;
+    private GlobalTimeItemRegistry globalRegistry;
+    private GlobalTimeItemScanner globalScanner;
+    private WorldUltimateManager worldUltimateManager;
 
     @Override
     public void onEnable() {
@@ -24,16 +24,21 @@ public class Main extends JavaPlugin {
         advancementManager.registerAdvancements();
         timeManager = new TimeManager(this);
         TimeBladeItems.registerRecipes(this);
-        chunkyMonitor = new ChunkyMonitor();
+        MasterOfTimeItems.registerRecipe(this);
+
+        globalRegistry = new GlobalTimeItemRegistry(this);
+        globalScanner = new GlobalTimeItemScanner(this, globalRegistry);
+        worldUltimateManager = new WorldUltimateManager(this);
 
         listener = new TimeBoundListener(this);
         getServer().getPluginManager().registerEvents(listener, this);
         clockListener = new TimeClockListener(this);
         getServer().getPluginManager().registerEvents(clockListener, this);
-        getServer().getPluginManager().registerEvents(chunkyMonitor, this);
         getServer().getPluginManager().registerEvents(new TimeItemProtectionListener(this), this);
+        getServer().getPluginManager().registerEvents(new TimeItemEntityGuardian(this), this);
         recipeUnlockListener = new RecipeUnlockListener(this);
         getServer().getPluginManager().registerEvents(recipeUnlockListener, this);
+        getServer().getPluginManager().registerEvents(new MasterOfTimeListener(this), this);
 
         var timeboundCommand = getCommand("timebound");
         if (timeboundCommand != null) {
@@ -57,22 +62,16 @@ public class Main extends JavaPlugin {
                 untrustCommand.setTabCompleter(trustManager);
             }
         }
-        Bukkit.getScheduler().runTaskTimer(this, () -> {
-            for (World w : Bukkit.getWorlds()) {
-                for (Entity e : w.getEntities()) {
-                    if (TimeFreezeManager.isFrozen(e)) {
-                        TimeFreezeManager.lockPosition(e);
-                    }
-                }
-            }
-        }, 1L, 1L);
-        Bukkit.getScheduler().runTaskTimer(this, () -> {
-            for (World w : Bukkit.getWorlds()) {
-                for (Entity e : w.getEntities()) {
-                    timeManager.trackEntity(e);
-                }
-            }
-        }, 1L, 1L);
+
+        // Managers own their own scheduling. Avoid "scan every entity in every world every tick" loops.
+        TimeFreezeManager.start(this);
+        timeManager.start(this);
+
+        // Global registry scanning: startup + periodic.
+        globalScanner.requestScan(GlobalTimeItemScanner.Reason.STARTUP);
+        long minutes = Math.max(1, getConfig().getLong("globalScanMinutes", 3));
+        long ticks = minutes * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimer(this, () -> globalScanner.requestScan(GlobalTimeItemScanner.Reason.PERIODIC), ticks, ticks);
         getLogger().info("TimeBound Enabled");
     }
 
@@ -92,16 +91,24 @@ public class Main extends JavaPlugin {
         return clockListener;
     }
 
-    public ChunkyMonitor getChunkyMonitor() {
-        return chunkyMonitor;
-    }
-
     public AdvancementManager getAdvancementManager() {
         return advancementManager;
     }
 
     public RecipeUnlockListener getRecipeUnlockListener() {
         return recipeUnlockListener;
+    }
+
+    public GlobalTimeItemRegistry getGlobalRegistry() {
+        return globalRegistry;
+    }
+
+    public GlobalTimeItemScanner getGlobalScanner() {
+        return globalScanner;
+    }
+
+    public WorldUltimateManager getWorldUltimateManager() {
+        return worldUltimateManager;
     }
 
     public NamespacedKey key(String keyName) {

@@ -18,7 +18,8 @@ public class AdvancementManager {
             "crafted_freeze",
             "crafted_brake",
             "crafted_skip",
-            "crafted_reverse"
+            "crafted_reverse",
+            "crafted_master"
     );
 
     private final Main plugin;
@@ -55,6 +56,11 @@ public class AdvancementManager {
     public void grantWeaponAdvancement(Player player, String weaponType) {
         grant(player, "root", "timebound");
         grant(player, "crafted_" + weaponType, "crafted");
+    }
+
+    public void grantMasterAdvancement(Player player) {
+        grant(player, "root", "timebound");
+        grant(player, "crafted_master", "crafted");
     }
 
     private void grant(Player player, String id, String criteria) {

@@ -6,10 +6,11 @@ import org.bukkit.Particle;
 import java.util.Locale;
 
 public enum ClockType {
-    FREEZE("freeze", "Freeze Clock", TextColor.fromHexString("#73D9FF"), Particle.SNOWFLAKE),
-    BRAKE("brake", "Brake Clock", TextColor.fromHexString("#BDBDBD"), Particle.ASH),
-    SKIP("skip", "Skip Clock", TextColor.fromHexString("#FFD95E"), Particle.ELECTRIC_SPARK),
-    REVERSE("reverse", "Reverse Clock", TextColor.fromHexString("#D58DFF"), Particle.REVERSE_PORTAL);
+    // Internal keys are kept for back-compat with existing items/recipes.
+    FREEZE("freeze", "Lunar Dial Clock", TextColor.fromHexString("#73D9FF"), Particle.SNOWFLAKE),
+    BRAKE("brake", "Chrono Lock Clock", TextColor.fromHexString("#BDBDBD"), Particle.ASH),
+    SKIP("skip", "Flashstep Clock", TextColor.fromHexString("#FFD95E"), Particle.ELECTRIC_SPARK),
+    REVERSE("reverse", "Requiem Clock", TextColor.fromHexString("#D58DFF"), Particle.REVERSE_PORTAL);
 
     private final String key;
     private final String displayName;

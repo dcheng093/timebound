@@ -1,11 +1,5 @@
-claimed:
-  weapons:
-    freeze: false
-    brake: false
-    skip: false
-    reverse: false
-  clocks:
-    freeze: false
-    brake: false
-    skip: false
-    reverse: false
+testMode: false
+
+# How often (in minutes) to rescan all known time-items across online players, loaded worlds/chunks,
+# and offline playerdata files.
+globalScanMinutes: 3

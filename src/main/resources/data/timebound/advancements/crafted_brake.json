@@ -4,8 +4,8 @@
     "icon": {
       "id": "minecraft:mace"
     },
-    "title": "Master of Brake",
-    "description": "Craft the Time Brake Mace using the Brake Clock",
+    "title": "Chrono Lock",
+    "description": "Craft Chrono Lock using the Chrono Clock",
     "frame": "goal",
     "show_toast": true,
     "announce_to_chat": true
