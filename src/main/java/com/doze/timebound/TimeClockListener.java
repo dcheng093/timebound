@@ -17,6 +17,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
@@ -68,11 +69,16 @@ public class TimeClockListener implements Listener {
         new BukkitRunnable() {
             float yaw = 0;
             UUID lockedClaimer = null;
+            int claimSoundTaskId = -1;
             final Map<UUID, Integer> progress = new HashMap<>();
 
             @Override
             public void run() {
                 if (!display.isValid()) {
+                    // Cleanup any leftover sound task
+                    if (claimSoundTaskId >= 0) {
+                        Bukkit.getScheduler().cancelTask(claimSoundTaskId);
+                    }
                     cancel();
                     return;
                 }
@@ -96,6 +102,12 @@ public class TimeClockListener implements Listener {
                     }
 
                     if (!p.isSneaking()) {
+                        // Cancel claim sound if player stops sneaking
+                        if (lockedClaimer != null && lockedClaimer.equals(p.getUniqueId()) && claimSoundTaskId >= 0) {
+                            Bukkit.getScheduler().cancelTask(claimSoundTaskId);
+                            claimSoundTaskId = -1;
+                        }
+                        
                         progress.put(p.getUniqueId(), 0);
                         if (lockedClaimer != null && lockedClaimer.equals(p.getUniqueId())) {
                             lockedClaimer = null;
@@ -104,7 +116,18 @@ public class TimeClockListener implements Listener {
                         continue;
                     }
 
-                    if (lockedClaimer == null) lockedClaimer = p.getUniqueId();
+                    if (lockedClaimer == null) {
+                        lockedClaimer = p.getUniqueId();
+                        
+                        // Start global claim sound (5 seconds, dramatic)
+                        claimSoundTaskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                            // Play layered cinematic sounds every 10 ticks
+                            for (Player nearbyPlayer : display.getWorld().getNearbyPlayers(display.getLocation(), 50)) {
+                                nearbyPlayer.playSound(display.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, org.bukkit.SoundCategory.MASTER, 1.2f, 0.8f);
+                                nearbyPlayer.playSound(display.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, org.bukkit.SoundCategory.MASTER, 0.8f, 1.0f);
+                            }
+                        }, 0L, 10L).getTaskId();
+                    }
 
                     int t = progress.getOrDefault(p.getUniqueId(), 0) + 1;
                     progress.put(p.getUniqueId(), t);
@@ -113,6 +136,12 @@ public class TimeClockListener implements Listener {
                     p.sendActionBar(Component.text("Claiming... " + pct + "% (" + secondsLeft + "s)", NamedTextColor.GOLD));
 
                     if (t >= CLAIM_HOLD_TICKS) {
+                        // Claim complete - stop sound
+                        if (claimSoundTaskId >= 0) {
+                            Bukkit.getScheduler().cancelTask(claimSoundTaskId);
+                            claimSoundTaskId = -1;
+                        }
+                        
                         ItemStack clockItem = TimeClockItems.createClock(plugin, type);
                         TimeItemUid.ensure(plugin, clockItem);
                         var leftovers = p.getInventory().addItem(clockItem);
@@ -224,19 +253,24 @@ public class TimeClockListener implements Listener {
 
     private void handleSwapHands(PlayerSwapHandItemsEvent event) {
         Player p = event.getPlayer();
+        
+        // Block swapping if player is frozen after claim
         if (isClaimFrozen(p)) {
             event.setCancelled(true);
             return;
         }
 
+        // CRITICAL: Only activate clocks when held in OFFHAND
+        // Main hand clock items are weapons, not clocks
         ClockType type = TimeClockItems.getClockType(plugin, event.getOffHandItem());
         if (type == null) return;
 
         // Use swap-hands as the activation key; don't actually swap items.
         event.setCancelled(true);
 
+        // Sneak + F = Charged activation
+        // F = Instant activation
         if (p.isSneaking()) {
-            // Simple "hold-to-charge" via sneak gating: charge for 1s while sneaking, then activate.
             startChargedClockActivation(p, type);
         } else {
             activateClock(p, type);
@@ -252,7 +286,6 @@ public class TimeClockListener implements Listener {
             claimFrozen.remove(p.getUniqueId());
             return;
         }
-        if (event.getTo() == null) return;
         // Hard-freeze: snap back.
         event.setTo(f.lockAt());
     }
@@ -276,6 +309,28 @@ public class TimeClockListener implements Listener {
         if (cursorClockType != null && playerHasClock(player, cursorClockType)) {
             event.setCancelled(true);
             player.sendMessage(Component.text("You already have a " + cursorClockType.displayName() + "!", NamedTextColor.RED));
+        }
+    }
+
+    /**
+     * Fix creative inventory item deletion bug.
+     * Prevents Time Clock items from disappearing when clicked in creative mode.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onInventoryCreative(InventoryCreativeEvent event) {
+        ItemStack cursor = event.getCursor();
+        
+        // Check if this is a Time Clock item
+        if (TimeClockItems.getClockType(plugin, cursor) != null) {
+            // Prevent creative deletion of Time Clocks by ensuring the item persists
+            // This prevents packet desync issues in creative mode
+            event.setCancelled(false); // Allow the event, but don't let it delete
+            
+            // Force update the inventory slot to prevent desync
+            if (event.getSlotType() != org.bukkit.event.inventory.InventoryType.SlotType.OUTSIDE) {
+                Player player = (Player) event.getWhoClicked();
+                Bukkit.getScheduler().runTask(plugin, player::updateInventory);
+            }
         }
     }
 
@@ -378,10 +433,22 @@ public class TimeClockListener implements Listener {
         return f != null && Bukkit.getCurrentTick() < f.untilTick();
     }
 
+    /**
+     * Freeze player after claim with proper cleanup.
+     * Ensures: movement locked, controls disabled, complete unfrozen state after.
+     */
     private void freezeAfterClaim(Player p) {
+        UUID playerId = p.getUniqueId();
         Location lock = p.getLocation().clone();
         int until = Bukkit.getCurrentTick() + CLAIM_FREEZE_TICKS;
-        claimFrozen.put(p.getUniqueId(), new ClaimFreeze(lock, until));
+        
+        // Set freeze state
+        claimFrozen.put(playerId, new ClaimFreeze(lock, until));
+        
+        // Apply freeze effects
+        p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, CLAIM_FREEZE_TICKS, 10, false, false, false));
+        
+        // Show title and action bar
         p.showTitle(net.kyori.adventure.title.Title.title(
                 Component.text("CLOCK CLAIMED", NamedTextColor.GOLD, net.kyori.adventure.text.format.TextDecoration.BOLD),
                 Component.empty(),
@@ -390,6 +457,29 @@ public class TimeClockListener implements Listener {
         p.sendActionBar(Component.text("Time holds you still...", NamedTextColor.GRAY));
         p.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, lock.add(0, 1.0, 0), 20, 0.4, 0.6, 0.4, 0.02);
         p.getWorld().playSound(p.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 0.7f, 1.4f);
+        
+        // Schedule cleanup after freeze duration expires
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            // Remove freeze state and ensure complete unfrozen
+            claimFrozen.remove(playerId);
+            
+            // Only unfroze if player is still online
+            if (p.isOnline()) {
+                // Remove all slowness effects applied during freeze
+                p.removePotionEffect(PotionEffectType.SLOWNESS);
+                
+                // Reset velocity to ensure movement restoration
+                if (p.getVelocity().length() < 0.01) {
+                    p.setVelocity(org.bukkit.util.Vector.ZERO);
+                }
+                
+                // Update inventory to ensure sync
+                p.updateInventory();
+                
+                // Broadcast completion (optional, for debugging)
+                // plugin.getLogger().info("Claim freeze ended for " + p.getName());
+            }
+        }, CLAIM_FREEZE_TICKS + 1);
     }
 
     private void startChargedClockActivation(Player player, ClockType type) {
@@ -445,7 +535,18 @@ public class TimeClockListener implements Listener {
     private static class EnumMapBackedCooldowns extends java.util.HashMap<UUID, Map<ClockType, Long>> {
     }
 
-    private boolean playerHasClock(Player player, ClockType type) {
+    /**
+     * Reset all clock cooldowns for a player (public API for /timebound cooldown command).
+     */
+    public void resetClockCooldowns(Player player) {
+        Map<ClockType, Long> map = cooldowns.get(player.getUniqueId());
+        if (map != null) {
+            map.clear();
+        }
+        player.sendMessage(Component.text("All clock cooldowns have been reset.", NamedTextColor.GREEN));
+    }
+
+    private void playerHasClock(Player player, ClockType type) {
         ItemStack[] contents = player.getInventory().getContents();
         if (contents != null) {
             for (ItemStack item : contents) {

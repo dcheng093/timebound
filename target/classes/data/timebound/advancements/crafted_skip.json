@@ -5,7 +5,7 @@
       "id": "minecraft:netherite_sword"
     },
     "title": "Master of Skip",
-    "description": "Craft the Time Skip Blade using the Skip Clock",
+    "description": "Craft Flashstep using the Skip Clock",
     "frame": "goal",
     "show_toast": true,
     "announce_to_chat": true

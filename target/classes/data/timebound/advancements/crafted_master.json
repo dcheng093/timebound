@@ -4,8 +4,8 @@
     "icon": {
       "id": "minecraft:netherite_sword"
     },
-    "title": "Master of Time",
-    "description": "Forge the legendary weapon",
+    "title": "Eternity",
+    "description": "Control Time, Control Everything",
     "frame": "challenge",
     "show_toast": true,
     "announce_to_chat": true

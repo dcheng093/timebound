@@ -5,11 +5,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -43,9 +41,9 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
-import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -154,16 +152,35 @@ public class TimeBoundListener implements Listener {
         }, 20L, 20L);
     }
 
+    /**
+     * Comprehensive cooldown reset for all weapon abilities, ultimates, and charges.
+     * Ensures complete reset of:
+     * - Ability cooldowns
+     * - Ultimate charges
+     * - Skip charges and internal cooldowns
+     * - BossBar displays
+     * Also resets clock cooldowns via TimeClockListener.
+     */
     public void resetCooldowns(Player player) {
         UUID id = player.getUniqueId();
 
+        // Reset weapon ability cooldowns
         abilityCooldowns.entrySet().removeIf(entry -> entry.getKey().startsWith(id.toString()));
+        
+        // Reset ultimate charges
         ultCharges.entrySet().removeIf(entry -> entry.getKey().startsWith(id.toString()));
 
+        // Reset skip-specific cooldowns and charges
         skipInternalCooldowns.remove(id);
         skipCharges.put(id, 3);
         skipLastRegen.put(id, System.currentTimeMillis());
+        skipStacks.remove(id);
+        skipLastHitTime.remove(id);
 
+        // Clear charged state
+        charging.remove(id);
+
+        // Remove all BossBar displays
         cooldownBars.entrySet().removeIf(entry -> {
             if (entry.getKey().contains(id.toString())) {
                 entry.getValue().removeAll();
@@ -179,9 +196,21 @@ public class TimeBoundListener implements Listener {
             }
             return false;
         });
-
+        
+        // Remove skip charge bar
         removeSkipChargeBar(player);
-        playAt(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
+        
+        // Reset clock cooldowns too
+        plugin.getClockListener().resetClockCooldowns(player);
+
+        // Play confirmation sound
+        Location playerLocation = player.getLocation();
+        if (playerLocation != null) {
+            playAt(playerLocation, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
+        }
+        
+        // Notify player
+        player.sendMessage(Component.text("All cooldowns, charges, and stacks have been reset.", NamedTextColor.GREEN));
     }
 
     public void clearSkipStacks(Player player) {

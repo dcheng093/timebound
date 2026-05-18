@@ -4,8 +4,8 @@
     "icon": {
       "id": "minecraft:netherite_sword"
     },
-    "title": "Master of Freeze",
-    "description": "Craft the Freeze Time Blade using the Freeze Clock",
+    "title": "Lunar Dial",
+    "description": "Craft the Lunar Dial using the Freeze Clock",
     "frame": "goal",
     "show_toast": true,
     "announce_to_chat": true

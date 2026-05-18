@@ -232,7 +232,9 @@ public final class RecipeUnlockListener implements Listener {
 
     public void unlockRecipesFromInventory(Player player, boolean toast) {
         ensureUids(player);
+        
         // Blade recipes unlock when the player holds the matching clock.
+        // Use unique recipe keys for each weapon/clock combination
         for (ItemStack item : player.getInventory().getContents()) {
             ClockType type = TimeClockItems.getClockType(plugin, item);
             if (type == null) continue;
@@ -241,7 +243,10 @@ public final class RecipeUnlockListener implements Listener {
             if (!player.hasDiscoveredRecipe(recipeKey)) {
                 player.discoverRecipe(recipeKey);
                 if (toast) {
+                    // Show recipe unlock toast with sound
                     player.getWorld().playSound(player.getLocation(), Sound.UI_TOAST_IN, 0.7f, 1.0f);
+                    // Force recipe book update
+                    player.updateInventory();
                 }
             }
         }

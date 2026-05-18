@@ -4,8 +4,8 @@
     "icon": {
       "id": "minecraft:netherite_sword"
     },
-    "title": "Master of Reverse",
-    "description": "Craft the Time Reverse Blade using the Reverse Clock",
+    "title": "Requiem",
+    "description": "Craft Requiem using the Reverse Clock",
     "frame": "goal",
     "show_toast": true,
     "announce_to_chat": true

@@ -145,7 +145,6 @@ public final class GlobalTimeItemScanner {
 
                 for (World world : Bukkit.getWorlds()) {
                     File folder = world.getWorldFolder();
-                    if (folder == null) continue;
                     File playerdata = new File(folder, "playerdata");
                     if (!playerdata.isDirectory()) continue;
 
