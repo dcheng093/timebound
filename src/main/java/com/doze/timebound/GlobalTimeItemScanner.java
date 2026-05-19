@@ -2,6 +2,7 @@ package com.doze.timebound;
 
 import java.io.File;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -99,7 +100,7 @@ public final class GlobalTimeItemScanner {
 
                     registry.publish(records);
                 } catch (Throwable t) {
-                    plugin.getLogger().warning("Global scan failed: " + t.getMessage());
+                    plugin.getLogger().warning("Global scan failed: %s".formatted(t.getMessage()));
                 } finally {
                     scanRunning.set(false);
                 }
@@ -167,6 +168,7 @@ public final class GlobalTimeItemScanner {
      * Minimal NBT parser for offline scanning. We only need enough to walk player inventories and
      * detect items containing our PDC keys.
      */
+    @SuppressWarnings("unchecked")
     private static final class PlayerDatNbtScanner {
         private static final byte TAG_END = 0;
         private static final byte TAG_BYTE = 1;
@@ -192,7 +194,7 @@ public final class GlobalTimeItemScanner {
                 byte rootType = in.readByte();
                 if (rootType != TAG_COMPOUND) return Set.of();
                 readUtf(in); // root name
-                NbtCompound root = readCompound(in);
+                Map<String, Object> root = readCompound(in);
 
                 Set<GlobalTimeItemRegistry.Record> out = new HashSet<>();
                 scanItemList(plugin, root, "Inventory", out);
@@ -203,28 +205,30 @@ public final class GlobalTimeItemScanner {
             }
         }
 
-        private static void scanItemList(Main plugin, NbtCompound root, String key, Set<GlobalTimeItemRegistry.Record> out) {
+        private static void scanItemList(Main plugin, Map<String, Object> root, String key, Set<GlobalTimeItemRegistry.Record> out) {
             Object v = root.get(key);
             if (!(v instanceof NbtList list)) return;
             if (list.elementType != TAG_COMPOUND) return;
 
             for (Object o : list.elements) {
-                if (!(o instanceof NbtCompound item)) continue;
-                extractTimeRecordsFromItem(plugin, item, out);
+                if (!(o instanceof Map<?, ?> item)) continue;
+                extractTimeRecordsFromItem(plugin, (Map<String, Object>) item, out);
             }
         }
 
-        private static void extractTimeRecordsFromItem(Main plugin, NbtCompound item, Set<GlobalTimeItemRegistry.Record> out) {
+        private static void extractTimeRecordsFromItem(Main plugin, Map<String, Object> item, Set<GlobalTimeItemRegistry.Record> out) {
             // On Spigot/Paper, PDC is stored under "tag" -> "PublicBukkitValues" as string keys.
             Object tag = item.get("tag");
-            if (!(tag instanceof NbtCompound tagComp)) return;
+            if (!(tag instanceof Map<?, ?> tagComp)) return;
             Object pbv = tagComp.get("PublicBukkitValues");
-            if (!(pbv instanceof NbtCompound pbvComp)) return;
+            if (!(pbv instanceof Map<?, ?> pbvComp)) return;
 
-            String uidRaw = getString(pbvComp, plugin.getName().toLowerCase(java.util.Locale.ROOT) + ":" + TimeItemUid.UID_KEY);
+            Map<String, Object> pbvMap = (Map<String, Object>) pbvComp;
+
+            String uidRaw = getString(pbvMap, plugin.getName().toLowerCase(java.util.Locale.ROOT) + ":" + TimeItemUid.UID_KEY);
             if (uidRaw == null) {
                 // Also accept explicit namespace "timebound" for safety if plugin name changes.
-                uidRaw = getString(pbvComp, "timebound:" + TimeItemUid.UID_KEY);
+                uidRaw = getString(pbvMap, "timebound:" + TimeItemUid.UID_KEY);
             }
             if (uidRaw == null) return;
 
@@ -235,18 +239,18 @@ public final class GlobalTimeItemScanner {
                 return;
             }
 
-            String weaponType = getString(pbvComp, "timebound:" + TimeBladeItems.TIME_WEAPON_KEY);
+            String weaponType = getString(pbvMap, "timebound:" + TimeBladeItems.TIME_WEAPON_KEY);
             if (weaponType == null) {
-                weaponType = getString(pbvComp, plugin.getName().toLowerCase(java.util.Locale.ROOT) + ":" + TimeBladeItems.TIME_WEAPON_KEY);
+                weaponType = getString(pbvMap, plugin.getName().toLowerCase(java.util.Locale.ROOT) + ":" + TimeBladeItems.TIME_WEAPON_KEY);
             }
             if (weaponType != null) {
                 out.add(new GlobalTimeItemRegistry.Record(uid, GlobalTimeItemRegistry.Kind.WEAPON, weaponType, null));
                 return;
             }
 
-            String clockTypeRaw = getString(pbvComp, "timebound:" + TimeClockItems.CLOCK_KEY);
+            String clockTypeRaw = getString(pbvMap, "timebound:" + TimeClockItems.CLOCK_KEY);
             if (clockTypeRaw == null) {
-                clockTypeRaw = getString(pbvComp, plugin.getName().toLowerCase(java.util.Locale.ROOT) + ":" + TimeClockItems.CLOCK_KEY);
+                clockTypeRaw = getString(pbvMap, plugin.getName().toLowerCase(java.util.Locale.ROOT) + ":" + TimeClockItems.CLOCK_KEY);
             }
             if (clockTypeRaw != null) {
                 ClockType ct = ClockType.fromKey(clockTypeRaw);
@@ -256,18 +260,18 @@ public final class GlobalTimeItemScanner {
                 }
             }
 
-            String master = getString(pbvComp, "timebound:" + TimeBoundItems.MASTER_KEY);
+            String master = getString(pbvMap, "timebound:" + TimeBoundItems.MASTER_KEY);
             if (master != null) {
                 out.add(new GlobalTimeItemRegistry.Record(uid, GlobalTimeItemRegistry.Kind.MASTER, null, null));
             }
         }
 
-        private static String getString(NbtCompound c, String key) {
+        private static String getString(Map<String, Object> c, String key) {
             Object v = c.get(key);
             return v instanceof String s ? s : null;
         }
 
-        private static NbtCompound readCompound(java.io.DataInputStream in) throws java.io.IOException {
+        private static Map<String, Object> readCompound(java.io.DataInputStream in) throws java.io.IOException {
             var map = new java.util.HashMap<String, Object>();
             while (true) {
                 byte type = in.readByte();
@@ -275,7 +279,7 @@ public final class GlobalTimeItemScanner {
                 String name = readUtf(in);
                 map.put(name, readPayload(in, type));
             }
-            return new NbtCompound(map);
+            return map;
         }
 
         private static Object readPayload(java.io.DataInputStream in, byte type) throws java.io.IOException {
@@ -321,12 +325,6 @@ public final class GlobalTimeItemScanner {
 
         private static String readUtf(java.io.DataInputStream in) throws java.io.IOException {
             return in.readUTF();
-        }
-
-        private record NbtCompound(java.util.Map<String, Object> map) {
-            Object get(String key) {
-                return map.get(key);
-            }
         }
 
         private static final class NbtList {

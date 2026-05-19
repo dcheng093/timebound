@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -17,7 +18,6 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.NamespacedKey;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -60,13 +60,13 @@ public class TrustManager implements CommandExecutor, TabCompleter {
         PersistentDataContainer pdc = player.getPersistentDataContainer();
         NamespacedKey trustKey = new NamespacedKey(Main.getInstance(), TRUST_KEY);
 
-        // Try to load from PDC
-        String[] trustedUuids = pdc.get(trustKey, PersistentDataType.STRING_ARRAY);
-        if (trustedUuids != null && trustedUuids.length > 0) {
+        // Try to load from PDC (store as String with comma-separated UUIDs)
+        String trustedUuidsStr = pdc.get(trustKey, PersistentDataType.STRING);
+        if (trustedUuidsStr != null && !trustedUuidsStr.isEmpty()) {
             Set<UUID> trustedSet = new HashSet<>();
-            for (String uuid : trustedUuids) {
+            for (String uuid : trustedUuidsStr.split(",")) {
                 try {
-                    UUID parsedUuid = UUID.fromString(uuid);
+                    UUID parsedUuid = UUID.fromString(uuid.trim());
                     trustedSet.add(parsedUuid);
                 } catch (IllegalArgumentException e) {
                     // Skip invalid UUIDs
@@ -93,10 +93,10 @@ public class TrustManager implements CommandExecutor, TabCompleter {
         if (trustedSet.isEmpty()) {
             pdc.remove(trustKey);
         } else {
-            String[] uuidArray = trustedSet.stream()
+            String uuidString = String.join(",", trustedSet.stream()
                     .map(UUID::toString)
-                    .toArray(String[]::new);
-            pdc.set(trustKey, PersistentDataType.STRING_ARRAY, uuidArray);
+                    .toArray(String[]::new));
+            pdc.set(trustKey, PersistentDataType.STRING, uuidString);
         }
     }
 

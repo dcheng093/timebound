@@ -113,7 +113,7 @@ public final class GlobalTimeItemRegistry {
     }
 
     public void logDuplicateViolation(String message) {
-        plugin.getLogger().warning("[TestMode] " + message);
+        plugin.getLogger().warning("[TestMode] %s".formatted(message));
         for (var p : Bukkit.getOnlinePlayers()) {
             if (p.hasPermission("timebound.admin")) {
                 p.sendMessage(net.kyori.adventure.text.Component.text("[TimeBound TestMode] " + message,

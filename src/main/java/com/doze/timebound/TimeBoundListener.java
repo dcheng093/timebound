@@ -53,6 +53,7 @@ import org.bukkit.event.player.PlayerToggleSneakEvent;
 import org.bukkit.event.player.PlayerToggleSprintEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -63,7 +64,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 
-@SuppressWarnings("null")
+
 public class TimeBoundListener implements Listener {
 
     // Passive chances are weapon-specific; this is only used where an explicit value isn't specified.
@@ -72,8 +73,6 @@ public class TimeBoundListener implements Listener {
     private static final int FREEZE_PASSIVE_TICKS = 100;
     private static final int SERVER_RADIUS = 50;
     private static final int FREEZE_TICKS = 100;
-    private static final int REVERSED_CONTROLS_TICKS = 100;
-    private static final double MAX_FREEZE_BLADE_DAMAGE = 10.0; // 5 hearts
 
     private final Main plugin;
     private final Map<String, Long> abilityCooldowns = new HashMap<>();
@@ -85,7 +84,6 @@ public class TimeBoundListener implements Listener {
     private final Deque<ReverseItemAction> reverseItemActions = new ArrayDeque<>();
     private final Map<UUID, Long> reverseAbsorbUntil = new HashMap<>();
     private final Map<UUID, Double> reverseAbsorbedDamage = new HashMap<>();
-    private final Map<UUID, Long> reversedControlsUntil = new HashMap<>();
     private final Map<UUID, DeathSnapshot> recentDeaths = new HashMap<>();
 
     private final Map<UUID, Long> brakeSprintBlockedUntil = new HashMap<>();
@@ -923,6 +921,8 @@ public class TimeBoundListener implements Listener {
             }
         }
 
+        // Reversed controls feature not fully implemented
+        /* 
         Long until = reversedControlsUntil.get(player.getUniqueId());
         if (until == null) return;
 
@@ -930,10 +930,11 @@ public class TimeBoundListener implements Listener {
             reversedControlsUntil.remove(player.getUniqueId());
             return;
         }
+        */
 
         Location from = event.getFrom();
         Location to = event.getTo();
-        if (to == null || from.getWorld() == null || !from.getWorld().equals(to.getWorld())) return;
+        if (from.getWorld() == null || !from.getWorld().equals(to.getWorld())) return;
 
         Vector delta = to.toVector().subtract(from.toVector());
         delta.setY(0);
@@ -974,8 +975,10 @@ public class TimeBoundListener implements Listener {
         }
         event.getDrops().clear();
 
+        ItemStack[] contents = player.getInventory().getContents();
+        ItemStack[] contentsCopy = contents != null ? contents.clone() : new ItemStack[0];
         recentDeaths.put(player.getUniqueId(), new DeathSnapshot(
-                player.getInventory().getContents().clone(),
+                contentsCopy,
                 Math.max(1.0, player.getHealth()),
                 player.getFoodLevel(),
                 player.getLocation().clone(),
@@ -1137,7 +1140,8 @@ public class TimeBoundListener implements Listener {
             AttributeInstance absorbAttribute = living.getAttribute(Attribute.MAX_ABSORPTION);
             if (absorbAttribute != null) {
                 double currentHealth = player.getHealth();
-                double maxHealth = player.getAttribute(Attribute.MAX_HEALTH).getValue();
+                AttributeInstance maxHealthAttr = player.getAttribute(Attribute.MAX_HEALTH);
+                double maxHealth = maxHealthAttr != null ? maxHealthAttr.getValue() : 20.0;
                 double targetHealth = Math.min(maxHealth + absorptionAmount, currentHealth + absorptionAmount);
                 if (targetHealth > currentHealth) {
                     player.setAbsorptionAmount(Math.min(absorptionAmount, 16.0));
@@ -1263,7 +1267,9 @@ public class TimeBoundListener implements Listener {
         ItemStack template = item.clone();
         template.setAmount(1);
 
-        for (ItemStack content : inventory.getContents()) {
+        ItemStack[] contents = inventory.getContents();
+        if (contents == null) return;
+        for (ItemStack content : contents) {
             if (content == null || !content.isSimilar(template)) continue;
 
             int removed = Math.min(remaining, content.getAmount());
@@ -1439,7 +1445,7 @@ public class TimeBoundListener implements Listener {
                 event.setCursor(copy);
             }
             ItemStack current = event.getCurrentItem();
-            if (TimeBoundItems.isTimeItem(plugin, current) || TimeBoundItems.isMasterOfTime(plugin, current)) {
+            if (current != null && (TimeBoundItems.isTimeItem(plugin, current) || TimeBoundItems.isMasterOfTime(plugin, current))) {
                 ItemStack copy = current.clone();
                 TimeItemUid.regenerate(plugin, copy);
                 event.setCurrentItem(copy);
@@ -1455,15 +1461,6 @@ public class TimeBoundListener implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> enforceSingleHeldBlade(player));
     }
 
-    private List<LivingEntity> allLivingEntities() {
-        List<LivingEntity> result = new ArrayList<>();
-
-        for (World world : Bukkit.getWorlds()) {
-            result.addAll(world.getLivingEntities());
-        }
-
-        return result;
-    }
 
     private boolean rollPassive() {
         return ThreadLocalRandom.current().nextInt(100) < DEFAULT_PASSIVE_CHANCE;
@@ -1650,6 +1647,7 @@ public class TimeBoundListener implements Listener {
         
         for (int i = 0; i < player.getInventory().getSize(); i++) {
             ItemStack item = player.getInventory().getItem(i);
+            if (item == null) continue;
             ClockType type = TimeClockItems.getClockType(plugin, item);
             if (type != null) {
                 int count = clockCount.getOrDefault(type, 0);
@@ -1664,43 +1662,25 @@ public class TimeBoundListener implements Listener {
         }
     }
 
-    private void moveTimeWeaponToMainHand(Player player, ItemStack weapon) {
-        if (weapon == null || getBlade(weapon) == null) return;
-
-        PlayerInventory inventory = player.getInventory();
-        ItemStack main = inventory.getItemInMainHand();
-        ItemStack offhand = inventory.getItemInOffHand();
-
-        if (getBlade(main) != null && main.isSimilar(weapon)) {
-            inventory.setItemInMainHand(weapon.clone());
-            return;
-        }
-
-        if (getBlade(offhand) != null && offhand.isSimilar(weapon)) {
-            inventory.setItemInOffHand(main == null || main.getType() == Material.AIR ? null : main);
-            inventory.setItemInMainHand(weapon.clone());
-            return;
-        }
-
-        inventory.setItemInMainHand(weapon.clone());
-    }
-
     private Blade getBlade(ItemStack item) {
         if (item == null || item.getType() == Material.AIR) return null;
 
         String type = TimeBladeItems.getTaggedType(item);
         if (type == null) {
-            // Backstop for legacy/desynced items: infer from CustomModelData when present.
+            // Backstop for legacy/desynced items: infer from PersistentDataContainer
             try {
-                if (item.hasItemMeta() && item.getItemMeta().hasCustomModelData()) {
-                    int cmd = item.getItemMeta().getCustomModelData();
-                    return switch (cmd) {
-                        case 1 -> Blade.FREEZE;
-                        case 2 -> Blade.SKIP;
-                        case 3 -> Blade.REVERSE;
-                        case 4 -> Blade.BRAKE;
-                        default -> null;
-                    };
+                ItemMeta meta = item.getItemMeta();
+                if (meta != null) {
+                    String customModel = meta.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "custom_model"), org.bukkit.persistence.PersistentDataType.STRING);
+                    if (customModel != null) {
+                        return switch (customModel) {
+                            case "freeze_blade" -> Blade.FREEZE;
+                            case "skip_blade" -> Blade.SKIP;
+                            case "reverse_blade" -> Blade.REVERSE;
+                            case "brake_blade" -> Blade.BRAKE;
+                            default -> null;
+                        };
+                    }
                 }
             } catch (Throwable ignored) {
             }

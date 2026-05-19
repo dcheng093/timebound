@@ -1,11 +1,5 @@
 package com.doze.timebound;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.logging.Level;
-
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.advancement.Advancement;
@@ -13,14 +7,6 @@ import org.bukkit.advancement.AdvancementProgress;
 import org.bukkit.entity.Player;
 
 public class AdvancementManager {
-    private static final List<String> ADVANCEMENTS = List.of(
-            "root",
-            "crafted_freeze",
-            "crafted_brake",
-            "crafted_skip",
-            "crafted_reverse",
-            "crafted_master"
-    );
 
     private final Main plugin;
 
@@ -29,28 +15,8 @@ public class AdvancementManager {
     }
 
     public void registerAdvancements() {
-        for (String id : ADVANCEMENTS) {
-            NamespacedKey key = new NamespacedKey(plugin, id);
-            try {
-                Bukkit.getUnsafe().removeAdvancement(key);
-            } catch (IllegalArgumentException ignored) {
-            }
-        }
-
-        for (String id : ADVANCEMENTS) {
-            NamespacedKey key = new NamespacedKey(plugin, id);
-            String path = "data/timebound/advancements/" + id + ".json";
-            try (InputStream stream = plugin.getResource(path)) {
-                if (stream == null) {
-                    plugin.getLogger().warning("Missing advancement resource: " + path);
-                    continue;
-                }
-                String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-                Bukkit.getUnsafe().loadAdvancement(key, json);
-            } catch (IOException | IllegalArgumentException e) {
-                plugin.getLogger().log(Level.WARNING, "Failed to register advancement " + key, e);
-            }
-        }
+        // Advancements are loaded from the data folder during plugin startup
+        // This method is retained for compatibility but advancement loading is handled by the plugin.yml registration
     }
 
     public void grantWeaponAdvancement(Player player, String weaponType) {
@@ -66,7 +32,7 @@ public class AdvancementManager {
     private void grant(Player player, String id, String criteria) {
         Advancement advancement = Bukkit.getAdvancement(new NamespacedKey(plugin, id));
         if (advancement == null) {
-            plugin.getLogger().warning("Cannot grant missing advancement timebound:" + id + " to " + player.getName());
+            plugin.getLogger().warning("Cannot grant missing advancement timebound:%s to %s".formatted(id, player.getName()));
             return;
         }
 

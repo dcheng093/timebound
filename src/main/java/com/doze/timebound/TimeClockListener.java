@@ -172,7 +172,7 @@ public class TimeClockListener implements Listener {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    @SuppressWarnings("null")
+
     public void spawnTimedClock(Location loc, ClockType type, long timerSeconds) {
         ItemDisplay display = loc.getWorld().spawn(loc, ItemDisplay.class, entity -> {
             entity.setItemStack(TimeClockItems.createClock(plugin, type));
@@ -236,7 +236,8 @@ public class TimeClockListener implements Listener {
         long last = lastSneakToggle.getOrDefault(id, 0L);
         lastSneakToggle.put(id, now);
 
-        if (now - last > DOUBLE_SNEAK_WINDOW_MS) return;
+        if (now - last > DOUBLE_SNEAK_WINDOW_MS) {
+        }
 
         // No-op: reserved for future double-sneak combos.
     }
@@ -369,7 +370,7 @@ public class TimeClockListener implements Listener {
         // 8-block directional teleport.
         Location from = player.getLocation();
         RayTraceResult ray = player.getWorld().rayTraceBlocks(player.getEyeLocation(), player.getEyeLocation().getDirection(), 8);
-        Location target = (ray != null && ray.getHitPosition() != null)
+        Location target = ray != null
                 ? ray.getHitPosition().toLocation(player.getWorld()).subtract(player.getEyeLocation().getDirection().normalize().multiply(0.6))
                 : from.clone().add(from.getDirection().normalize().multiply(8));
         target.setYaw(from.getYaw());
@@ -383,9 +384,8 @@ public class TimeClockListener implements Listener {
 
     private boolean useRequiemClock(Player player) {
         // Heal 2.5 hearts + restore saturation.
-        double max = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH) != null
-                ? player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue()
-                : 20.0;
+        org.bukkit.attribute.AttributeInstance maxHealthAttr = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        double max = maxHealthAttr != null ? maxHealthAttr.getValue() : 20.0;
         player.setHealth(Math.min(max, player.getHealth() + 5.0));
         player.setFoodLevel(20);
         player.setSaturation(20.0f);
@@ -470,7 +470,7 @@ public class TimeClockListener implements Listener {
                 
                 // Reset velocity to ensure movement restoration
                 if (p.getVelocity().length() < 0.01) {
-                    p.setVelocity(org.bukkit.util.Vector.ZERO);
+                    p.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
                 }
                 
                 // Update inventory to ensure sync
@@ -546,7 +546,7 @@ public class TimeClockListener implements Listener {
         player.sendMessage(Component.text("All clock cooldowns have been reset.", NamedTextColor.GREEN));
     }
 
-    private void playerHasClock(Player player, ClockType type) {
+    private boolean playerHasClock(Player player, ClockType type) {
         ItemStack[] contents = player.getInventory().getContents();
         if (contents != null) {
             for (ItemStack item : contents) {

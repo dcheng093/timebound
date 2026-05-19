@@ -235,28 +235,33 @@ public final class RecipeUnlockListener implements Listener {
         
         // Blade recipes unlock when the player holds the matching clock.
         // Use unique recipe keys for each weapon/clock combination
-        for (ItemStack item : player.getInventory().getContents()) {
-            ClockType type = TimeClockItems.getClockType(plugin, item);
-            if (type == null) continue;
+        ItemStack[] contents = player.getInventory().getContents();
+        if (contents != null) {
+            for (ItemStack item : contents) {
+                ClockType type = TimeClockItems.getClockType(plugin, item);
+                if (type == null) continue;
 
-            NamespacedKey recipeKey = TimeBladeItems.recipeKey(plugin, type);
-            if (!player.hasDiscoveredRecipe(recipeKey)) {
-                player.discoverRecipe(recipeKey);
-                if (toast) {
-                    // Show recipe unlock toast with sound
-                    player.getWorld().playSound(player.getLocation(), Sound.UI_TOAST_IN, 0.7f, 1.0f);
-                    // Force recipe book update
-                    player.updateInventory();
+                NamespacedKey recipeKey = TimeBladeItems.recipeKey(plugin, type);
+                if (!player.hasDiscoveredRecipe(recipeKey)) {
+                    player.discoverRecipe(recipeKey);
+                    if (toast) {
+                        // Show recipe unlock toast with sound
+                        player.getWorld().playSound(player.getLocation(), Sound.UI_TOAST_IN, 0.7f, 1.0f);
+                        // Force recipe book update
+                        player.updateInventory();
+                    }
                 }
             }
         }
 
         // Master recipe unlock when the player has all four blades at least once.
         EnumSet<ClockType> blades = EnumSet.noneOf(ClockType.class);
-        for (ItemStack item : player.getInventory().getContents()) {
-            String weaponType = TimeBladeItems.getTaggedType(item);
-            ClockType ct = ClockType.fromKey(weaponType);
-            if (ct != null) blades.add(ct);
+        if (contents != null) {
+            for (ItemStack item : contents) {
+                String weaponType = TimeBladeItems.getTaggedType(item);
+                ClockType ct = ClockType.fromKey(weaponType);
+                if (ct != null) blades.add(ct);
+            }
         }
         if (blades.containsAll(EnumSet.allOf(ClockType.class))) {
             NamespacedKey key = MasterOfTimeItems.recipeKey(plugin);
@@ -315,7 +320,9 @@ public final class RecipeUnlockListener implements Listener {
 
     private boolean craftContainsClock(CraftingInventory inventory, ClockType type) {
         if (type == null) return false;
-        for (ItemStack item : inventory.getMatrix()) {
+        ItemStack[] matrix = inventory.getMatrix();
+        if (matrix == null) return false;
+        for (ItemStack item : matrix) {
             if (TimeClockItems.getClockType(plugin, item) == type) {
                 return true;
             }
@@ -352,16 +359,13 @@ public final class RecipeUnlockListener implements Listener {
                 && seen.contains("reverse");
     }
 
-    private boolean playerHasWeapon(Player player, String type) {
-        for (ItemStack item : player.getInventory().getContents()) {
-            if (type.equals(TimeBladeItems.getTaggedType(item))) return true;
-        }
-        return false;
-    }
 
     private boolean playerHasClock(Player player, ClockType type) {
-        for (ItemStack item : player.getInventory().getContents()) {
-            if (TimeClockItems.getClockType(plugin, item) == type) return true;
+        ItemStack[] contents = player.getInventory().getContents();
+        if (contents != null) {
+            for (ItemStack item : contents) {
+                if (TimeClockItems.getClockType(plugin, item) == type) return true;
+            }
         }
         return false;
     }
@@ -374,7 +378,7 @@ public final class RecipeUnlockListener implements Listener {
                 .append(Component.text(" (blocked).", NamedTextColor.RED));
         Bukkit.broadcast(msg);
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.9f, 0.7f);
-        plugin.getLogger().warning(player.getName() + " attempted to craft duplicate " + weaponType);
+        plugin.getLogger().warning("%s attempted to craft duplicate %s".formatted(player.getName(), weaponType));
     }
 
     private void announceWeaponCraft(Player player, String weaponType) {

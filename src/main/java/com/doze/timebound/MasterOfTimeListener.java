@@ -159,28 +159,6 @@ public final class MasterOfTimeListener implements Listener {
         return TimeBoundItems.isMasterOfTime(plugin, main) || TimeBoundItems.isMasterOfTime(plugin, off);
     }
 
-    private void enforceNoOffhandMaster(Player p) {
-        ItemStack off = p.getInventory().getItemInOffHand();
-        if (!TimeBoundItems.isMasterOfTime(plugin, off)) return;
-
-        ItemStack main = p.getInventory().getItemInMainHand();
-        p.getInventory().setItemInOffHand(null);
-
-        // Prefer moving it to main-hand if the player isn't already holding it there.
-        if (TimeBoundItems.isEmpty(main)) {
-            p.getInventory().setItemInMainHand(off);
-        } else {
-            java.util.Map<Integer, ItemStack> leftovers = p.getInventory().addItem(off);
-            for (ItemStack leftover : leftovers.values()) {
-                p.getWorld().dropItemNaturally(p.getLocation(), leftover);
-            }
-        }
-
-        p.sendMessage(Component.text("Master of Time cannot be held in the offhand.", NamedTextColor.RED));
-        p.updateInventory();
-        updateBossbar(p);
-    }
-
     private void applyPassives(Player p) {
         p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED, 60, 1, false, false, true)); // Speed II
         p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.STRENGTH, 60, 0, false, false, true)); // Strength I
@@ -313,15 +291,7 @@ public final class MasterOfTimeListener implements Listener {
         }, ULT_DURATION_TICKS);
     }
 
-    private void spawnRing(Location center, double radius, Particle particle, int points) {
-        if (center.getWorld() == null) return;
-        for (int i = 0; i < points; i++) {
-            double angle = (Math.PI * 2.0) * (i / (double) points);
-            double x = Math.cos(angle) * radius;
-            double z = Math.sin(angle) * radius;
-            center.getWorld().spawnParticle(particle, center.clone().add(x, 0.2, z), 1, 0, 0, 0, 0);
-        }
-    }
+
 
     private void updateBossbar(Player p) {
         UUID id = p.getUniqueId();

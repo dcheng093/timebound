@@ -188,7 +188,7 @@ public class TimeItemProtectionListener implements Listener {
             player.sendMessage(message);
             player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 0.35f, 1.6f);
         }
-        plugin.getLogger().info(name + " " + reason + ".");
+        plugin.getLogger().info("%s %s.".formatted(name, reason));
     }
 
     private static void giveOrDrop(Main plugin, Player player, ItemStack item) {

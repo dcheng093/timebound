@@ -107,6 +107,6 @@ public final class MasterOfTimeItems {
             p.sendMessage(msg);
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.8f, 1.2f);
         }
-        plugin.getLogger().info(player.getName() + " crafted Eternity.");
+        plugin.getLogger().info("%s crafted Eternity.".formatted(player.getName()));
     }
 }
