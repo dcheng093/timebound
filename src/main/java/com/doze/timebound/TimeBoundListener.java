@@ -1708,4 +1708,90 @@ public class TimeBoundListener implements Listener {
             List<PickedUp> pickedUpItems
     ) {
     }
+
+    // ============ Public API for KeybindManager ============
+    
+    /**
+     * Public entry point for weapon ability activation (from KeybindManager).
+     */
+    public void activateWeaponAbility(Player player, KeybindManager.Weapon weapon) {
+        boolean used = switch (weapon) {
+            case FREEZE -> freezeLookedAtEntity(player);
+            case BRAKE -> brakeLookedAtEntity(player);
+            case SKIP -> dashForward(player);
+            case REVERSE -> startDamageAbsorb(player);
+            default -> false;
+        };
+
+        if (used && weapon != KeybindManager.Weapon.SKIP) {
+            startAbilityCooldown(player, weapon);
+        }
+    }
+
+    /**
+     * Public entry point for weapon ultimate activation (from KeybindManager).
+     */
+    public void activateWeaponUltimate(Player player, KeybindManager.Weapon weapon) {
+        if (!consumeUltCharge(player, weapon)) return;
+
+        switch (weapon) {
+            case FREEZE -> freezeServer(player);
+            case BRAKE -> brakeServer(player);
+            case SKIP -> skipServer(player);
+            case REVERSE -> reverseWorld(player);
+            default -> {}
+        }
+    }
+
+    /**
+     * Wrapper for ability cooldown check.
+     */
+    private void startAbilityCooldown(Player player, KeybindManager.Weapon weapon) {
+        Blade blade = switch (weapon) {
+            case FREEZE -> Blade.FREEZE;
+            case BRAKE -> Blade.BRAKE;
+            case SKIP -> Blade.SKIP;
+            case REVERSE -> Blade.REVERSE;
+            default -> null;
+        };
+
+        if (blade == null || blade.abilityCooldownMillis <= 0) return;
+        abilityCooldowns.put(chargeKey(player, blade), System.currentTimeMillis() + blade.abilityCooldownMillis);
+        showCooldownBar(player, blade);
+    }
+
+    /**
+     * Wrapper for ultimate charge check.
+     */
+    private boolean consumeUltCharge(Player player, KeybindManager.Weapon weapon) {
+        Blade blade = switch (weapon) {
+            case FREEZE -> Blade.FREEZE;
+            case BRAKE -> Blade.BRAKE;
+            case SKIP -> Blade.SKIP;
+            case REVERSE -> Blade.REVERSE;
+            default -> null;
+        };
+
+        if (blade == null) return false;
+
+        String key = chargeKey(player, blade);
+        int charge = ultCharges.getOrDefault(key, 0);
+        if (charge < ULT_CHARGE_REQUIRED) {
+            sendColored(player, NamedTextColor.RED, blade.displayName + " ult is not charged. " + charge + "/" + ULT_CHARGE_REQUIRED + " player kills.");
+            updateUltBar(player, blade);
+            Location playerLocation = player.getLocation();
+            if (playerLocation != null) {
+                playAt(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
+            }
+            return false;
+        }
+
+        ultCharges.put(key, 0);
+        updateUltBar(player, blade);
+        Location playerLocation = player.getLocation();
+        if (playerLocation != null) {
+            playAt(playerLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.2f);
+        }
+        return true;
+    }
 }

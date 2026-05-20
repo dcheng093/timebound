@@ -10,6 +10,8 @@ public class Main extends JavaPlugin {
     private TimeManager timeManager;
     private TimeBoundListener listener;
     private TimeClockListener clockListener;
+    private MasterOfTimeListener masterListener;
+    private KeybindManager keybindManager;
     private AdvancementManager advancementManager;
     private RecipeUnlockListener recipeUnlockListener;
     private GlobalTimeItemRegistry globalRegistry;
@@ -30,6 +32,9 @@ public class Main extends JavaPlugin {
         globalScanner = new GlobalTimeItemScanner(this, globalRegistry);
         worldUltimateManager = new WorldUltimateManager(this);
 
+        // Initialize new unified keybind system
+        keybindManager = new KeybindManager(this);
+
         listener = new TimeBoundListener(this);
         getServer().getPluginManager().registerEvents(listener, this);
         clockListener = new TimeClockListener(this);
@@ -38,7 +43,11 @@ public class Main extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TimeItemEntityGuardian(this), this);
         recipeUnlockListener = new RecipeUnlockListener(this);
         getServer().getPluginManager().registerEvents(recipeUnlockListener, this);
-        getServer().getPluginManager().registerEvents(new MasterOfTimeListener(this), this);
+        masterListener = new MasterOfTimeListener(this);
+        getServer().getPluginManager().registerEvents(masterListener, this);
+        
+        // Register unified keybind listener
+        getServer().getPluginManager().registerEvents(new KeybindListener(this, keybindManager), this);
 
         var timeboundCommand = getCommand("timebound");
         if (timeboundCommand != null) {
@@ -89,6 +98,14 @@ public class Main extends JavaPlugin {
 
     public TimeClockListener getClockListener() {
         return clockListener;
+    }
+
+    public MasterOfTimeListener getMasterListener() {
+        return masterListener;
+    }
+
+    public KeybindManager getKeybindManager() {
+        return keybindManager;
     }
 
     public AdvancementManager getAdvancementManager() {

@@ -109,9 +109,12 @@ public final class MasterOfTimeListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onSwapHands(PlayerSwapHandItemsEvent e) {
-        handleSwapHands(e);
+        // Disabled - now handled by KeybindManager via KeybindListener
+        // Previous code kept for reference:
+        // handleSwapHands(e);
     }
 
+    @Deprecated
     private void handleSwapHands(PlayerSwapHandItemsEvent e) {
         Player p = e.getPlayer();
         if (!TimeBoundItems.isMasterOfTime(plugin, e.getMainHandItem())) return;
@@ -330,5 +333,23 @@ public final class MasterOfTimeListener implements Listener {
         double progress = Math.max(0.0, Math.min(1.0, 1.0 - (left / (double) max)));
         bar.setProgress(progress);
         bar.setTitle("Eternity: " + label + "  " + Math.max(0, (left + 999) / 1000) + "s");
+    }
+
+    // ============ Public API for KeybindManager ============
+
+    /**
+     * Public method for F (regular ability) - uses Blitz for now
+     */
+    public void activateMasterAbility(Player p) {
+        if (!tryStartCooldown(p, "mot_blitz", BLITZ_CD)) return;
+        blitz(p);
+    }
+
+    /**
+     * Public method for Shift+F (ultimate)
+     */
+    public void activateMasterUltimate(Player p) {
+        if (!tryStartCooldown(p, "mot_ult", ULT_CD)) return;
+        ultimate(p);
     }
 }
