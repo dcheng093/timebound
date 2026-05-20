@@ -920,32 +920,6 @@ public class TimeBoundListener implements Listener {
                 player.setSprinting(false);
             }
         }
-
-        // Reversed controls feature not fully implemented
-        /* 
-        Long until = reversedControlsUntil.get(player.getUniqueId());
-        if (until == null) return;
-
-        if (until < System.currentTimeMillis()) {
-            reversedControlsUntil.remove(player.getUniqueId());
-            return;
-        }
-        */
-
-        Location from = event.getFrom();
-        Location to = event.getTo();
-        if (from.getWorld() == null || !from.getWorld().equals(to.getWorld())) return;
-
-        Vector delta = to.toVector().subtract(from.toVector());
-        delta.setY(0);
-
-        if (delta.lengthSquared() <= 0.0001) return;
-
-        Location reversed = from.clone().subtract(delta);
-        reversed.setY(to.getY());
-        reversed.setYaw(to.getYaw());
-        reversed.setPitch(to.getPitch());
-        event.setTo(reversed);
     }
 
     @EventHandler
@@ -1350,11 +1324,6 @@ public class TimeBoundListener implements Listener {
         if (getBlade(event.getItem()) != null) {
             event.setCancelled(true);
         }
-    }
-
-    @EventHandler(priority = org.bukkit.event.EventPriority.LOWEST)
-    public void onSwapHandsLowest(PlayerSwapHandItemsEvent event) {
-        handleSwapHands(event);
     }
 
     @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)

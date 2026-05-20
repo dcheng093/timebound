@@ -242,11 +242,6 @@ public class TimeClockListener implements Listener {
         // No-op: reserved for future double-sneak combos.
     }
 
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onSwapHandsLowest(PlayerSwapHandItemsEvent event) {
-        handleSwapHands(event);
-    }
-
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onSwapHands(PlayerSwapHandItemsEvent event) {
         handleSwapHands(event);

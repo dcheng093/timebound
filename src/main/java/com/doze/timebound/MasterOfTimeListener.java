@@ -107,11 +107,6 @@ public final class MasterOfTimeListener implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> updateBossbar(e.getPlayer()));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onSwapHandsLowest(PlayerSwapHandItemsEvent e) {
-        handleSwapHands(e);
-    }
-
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onSwapHands(PlayerSwapHandItemsEvent e) {
         handleSwapHands(e);
