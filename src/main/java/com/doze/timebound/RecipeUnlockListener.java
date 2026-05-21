@@ -180,14 +180,26 @@ public final class RecipeUnlockListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
-            Bukkit.getScheduler().runTask(plugin, () -> unlockRecipesFromInventory(player, false));
+            // Skip immediate processing in creative mode to prevent desync
+            if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) {
+                // Defer to next tick
+                Bukkit.getScheduler().runTaskLater(plugin, () -> unlockRecipesFromInventory(player, false), 1L);
+            } else {
+                Bukkit.getScheduler().runTask(plugin, () -> unlockRecipesFromInventory(player, false));
+            }
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
-            Bukkit.getScheduler().runTask(plugin, () -> unlockRecipesFromInventory(player, false));
+            // Skip immediate processing in creative mode to prevent desync
+            if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) {
+                // Defer to next tick
+                Bukkit.getScheduler().runTaskLater(plugin, () -> unlockRecipesFromInventory(player, false), 1L);
+            } else {
+                Bukkit.getScheduler().runTask(plugin, () -> unlockRecipesFromInventory(player, false));
+            }
         }
     }
 

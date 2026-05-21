@@ -231,7 +231,7 @@ public class KeybindManager {
             case SKIP -> BarColor.YELLOW;
             case REVERSE -> BarColor.PURPLE;
             case MASTER -> BarColor.GREEN;
-            case TIME_CLOCK -> BarColor.CYAN;
+            case TIME_CLOCK -> BarColor.RED;
         };
         
         BossBar bar = chargeBars.computeIfAbsent(id, ignored -> 

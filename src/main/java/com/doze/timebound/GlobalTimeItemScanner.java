@@ -327,12 +327,16 @@ public final class GlobalTimeItemScanner {
             return in.readUTF();
         }
 
-        @SuppressWarnings("unused")
-        private record NbtCompound(java.util.Map<String, Object> map) {
+        private static final class NbtCompound {
+            private final java.util.Map<String, ?> map;
+
+            NbtCompound(java.util.Map<String, Object> map) {
+                this.map = map;
+            }
+
             Object get(String key) {
                 return map.get(key);
             }
-            // Note: map is used only for read operations via get(), not added to
         }
 
         private static final class NbtList {

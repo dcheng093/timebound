@@ -1403,31 +1403,61 @@ public class TimeBoundListener implements Listener {
     @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
     public void onInventoryCreative(InventoryCreativeEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        
+        // DO NOT modify items during creative event - this causes client desync and disappearing items.
+        // Instead, defer all operations until the client transaction is complete.
+        
+        // Log for test mode
         boolean testMode = plugin.getConfig().getBoolean("testMode", false);
-        if (!testMode) {
-            // Strict mode: Creative can duplicate NBT client-side (including our UID). Force a new UID on any TimeBound item
-            // that is being placed/moved via a creative transaction to prevent "same UID exists twice" ghosting.
-            ItemStack cursor = event.getCursor();
-            if (TimeBoundItems.isTimeItem(plugin, cursor) || TimeBoundItems.isMasterOfTime(plugin, cursor)) {
-                ItemStack copy = cursor.clone();
-                TimeItemUid.regenerate(plugin, copy);
-                event.setCursor(copy);
-            }
-            ItemStack current = event.getCurrentItem();
-            if (current != null && (TimeBoundItems.isTimeItem(plugin, current) || TimeBoundItems.isMasterOfTime(plugin, current))) {
-                ItemStack copy = current.clone();
-                TimeItemUid.regenerate(plugin, copy);
-                event.setCurrentItem(copy);
-            }
-        } else {
-            // Test mode: allow duplicates, but log that creative could clone items.
+        if (testMode) {
             ItemStack cursor = event.getCursor();
             if (TimeBoundItems.isTimeItem(plugin, cursor) || TimeBoundItems.isMasterOfTime(plugin, cursor)) {
                 plugin.getGlobalRegistry().logDuplicateViolation(player.getName() + " handled a TimeBound item via creative inventory.");
             }
         }
-        // Defer enforcement by 1 tick to let the client settle the creative transaction.
-        Bukkit.getScheduler().runTask(plugin, () -> enforceSingleHeldBlade(player));
+        
+        // Defer validation and enforcement by 2 ticks to let the client settle the creative transaction.
+        // This prevents item disappearance due to client-server desync.
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            
+            if (!testMode) {
+                // Regenerate UIDs on TimeBound items to prevent duplicates
+                regenerateTimeBoundUIDs(player.getInventory());
+            }
+            
+            enforceSingleHeldBlade(player);
+        }, 2L);
+    }
+    
+    /**
+     * Safely regenerates UIDs on TimeBound items after creative transaction completes.
+     * Only modifies items after the client has finished the transaction.
+     */
+    private void regenerateTimeBoundUIDs(PlayerInventory inventory) {
+        boolean changed = false;
+        for (int i = 0; i < inventory.getSize(); i++) {
+            ItemStack item = inventory.getItem(i);
+            if (item != null && (TimeBoundItems.isTimeItem(plugin, item) || TimeBoundItems.isMasterOfTime(plugin, item))) {
+                TimeItemUid.regenerate(plugin, item);
+                changed = true;
+            }
+        }
+        
+        if (changed) {
+            // Single updateInventory call after all modifications
+            Player owner = null;
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (p.getInventory().equals(inventory)) {
+                    owner = p;
+                    break;
+                }
+            }
+            if (owner != null && owner.getGameMode() == GameMode.CREATIVE) {
+                // Use a delayed updateInventory to prevent desync
+                Bukkit.getScheduler().runTask(plugin, owner::updateInventory);
+            }
+        }
     }
 
 

@@ -25,7 +25,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import net.kyori.adventure.text.Component;
@@ -110,45 +109,6 @@ public final class MasterOfTimeListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onSwapHands(PlayerSwapHandItemsEvent e) {
         // Disabled - now handled by KeybindManager via KeybindListener
-        // Previous code kept for reference:
-        // handleSwapHands(e);
-    }
-
-    @Deprecated
-    private void handleSwapHands(PlayerSwapHandItemsEvent e) {
-        Player p = e.getPlayer();
-        if (!TimeBoundItems.isMasterOfTime(plugin, e.getMainHandItem())) return;
-
-        // Use swap-hands as the ability key; don't actually swap items.
-        e.setCancelled(true);
-
-        UUID id = p.getUniqueId();
-        long now = System.currentTimeMillis();
-        long last = lastSwapToggle.getOrDefault(id, 0L);
-        lastSwapToggle.put(id, now);
-        boolean doubleTap = (now - last) <= 300L;
-        boolean sneaking = p.isSneaking();
-
-        if (sneaking && doubleTap) {
-            if (!tryStartCooldown(p, "mot_ult", ULT_CD)) return;
-            ultimate(p);
-            return;
-        }
-
-        if (sneaking) {
-            if (!tryStartCooldown(p, "mot_disturb", DISTURB_CD)) return;
-            disturbance(p);
-            return;
-        }
-
-        if (doubleTap) {
-            if (!tryStartCooldown(p, "mot_blink", BLINK_CD)) return;
-            blink(p);
-            return;
-        }
-
-        if (!tryStartCooldown(p, "mot_blitz", BLITZ_CD)) return;
-        blitz(p);
     }
 
     private boolean isHoldingMaster(Player p) {
@@ -201,40 +161,6 @@ public final class MasterOfTimeListener implements Listener {
         p.getWorld().playSound(p.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.6f, 1.25f);
         p.getWorld().spawnParticle(Particle.CLOUD, p.getLocation().add(0, 1.0, 0), 22, 0.28, 0.28, 0.28, 0.02);
         p.getWorld().spawnParticle(Particle.END_ROD, p.getLocation().add(0, 1.0, 0), 12, 0.25, 0.35, 0.25, 0.01);
-    }
-
-    private void blink(Player p) {
-        Location before = p.getLocation();
-        RayTraceResult ray = p.getWorld().rayTraceBlocks(p.getEyeLocation(), p.getEyeLocation().getDirection(), 28);
-        Location target;
-        if (ray == null) {
-            target = before.clone().add(before.getDirection().normalize().multiply(14));
-        } else {
-            target = ray.getHitPosition().toLocation(p.getWorld()).subtract(before.getDirection().normalize());
-        }
-        target.setYaw(before.getYaw());
-        target.setPitch(before.getPitch());
-
-        p.teleportAsync(target).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
-            before.getWorld().spawnParticle(Particle.REVERSE_PORTAL, before.add(0, 1.0, 0), 50, 0.4, 0.6, 0.4, 0.02);
-            p.getWorld().spawnParticle(Particle.PORTAL, p.getLocation().add(0, 1.0, 0), 50, 0.4, 0.6, 0.4, 0.02);
-            p.getWorld().playSound(p.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.9f, 1.1f);
-        }));
-    }
-
-    private void disturbance(Player p) {
-        Location loc = p.getLocation();
-        p.getWorld().playSound(p.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 0.6f);
-        p.getWorld().spawnParticle(Particle.DUST_PLUME, loc.add(0, 0.2, 0), 140, 3.0, 0.7, 3.0, 0.03);
-        p.getWorld().spawnParticle(Particle.SONIC_BOOM, p.getLocation().add(0, 1.0, 0), 1, 0, 0, 0, 0);
-
-        for (LivingEntity e : p.getWorld().getNearbyLivingEntities(p.getLocation(), 100, 50, 100)) {
-            if (e.equals(p)) continue;
-            if (e instanceof Player other && TrustManager.isTrusted(p, other)) continue;
-            e.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, 200, 1, false, true, true));
-            e.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.WEAKNESS, 200, 0, false, true, true));
-            e.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.GLOWING, 200, 0, false, true, true));
-        }
     }
 
     private void ultimate(Player p) {

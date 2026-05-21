@@ -309,24 +309,21 @@ public class TimeClockListener implements Listener {
     }
 
     /**
-     * Fix creative inventory item deletion bug.
-     * Prevents Time Clock items from disappearing when clicked in creative mode.
+     * Handle Time Clock items in creative mode inventory without causing desync.
+     * DO NOT immediately update inventory - this causes items to disappear.
+     * Instead, defer operations until after the client transaction completes.
      */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryCreative(InventoryCreativeEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        
         ItemStack cursor = event.getCursor();
         
-        // Check if this is a Time Clock item
+        // Just track the creative action - don't modify during event
+        // Modifying during creative events causes client desync
         if (TimeClockItems.getClockType(plugin, cursor) != null) {
-            // Prevent creative deletion of Time Clocks by ensuring the item persists
-            // This prevents packet desync issues in creative mode
-            event.setCancelled(false); // Allow the event, but don't let it delete
-            
-            // Force update the inventory slot to prevent desync
-            if (event.getSlotType() != org.bukkit.event.inventory.InventoryType.SlotType.OUTSIDE) {
-                Player player = (Player) event.getWhoClicked();
-                Bukkit.getScheduler().runTask(plugin, player::updateInventory);
-            }
+            // Defer any validation to after the client settles
+            // No immediate updateInventory() - this causes disappearing items!
         }
     }
 

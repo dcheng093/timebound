@@ -1,5 +1,8 @@
 package com.doze.timebound;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.advancement.Advancement;
@@ -9,14 +12,14 @@ import org.bukkit.entity.Player;
 public class AdvancementManager {
 
     private final Main plugin;
+    private final Map<String, Advancement> cache = new HashMap<>();
 
     public AdvancementManager(Main plugin) {
         this.plugin = plugin;
     }
 
     public void registerAdvancements() {
-        // Advancements are loaded from the data folder during plugin startup
-        // This method is retained for compatibility but advancement loading is handled by the plugin.yml registration
+        // advancements are automatically loaded from the plugin's bundled data pack resources, so uhhhh kinda useless?
     }
 
     public void grantWeaponAdvancement(Player player, String weaponType) {
@@ -30,14 +33,20 @@ public class AdvancementManager {
     }
 
     private void grant(Player player, String id, String criteria) {
-        Advancement advancement = Bukkit.getAdvancement(new NamespacedKey(plugin, id));
+        Advancement advancement = cache.computeIfAbsent(id,
+            key -> Bukkit.getAdvancement(new NamespacedKey(plugin, key)));
+
         if (advancement == null) {
-            plugin.getLogger().warning("Cannot grant missing advancement timebound:%s to %s".formatted(id, player.getName()));
+            plugin.getLogger().warning(
+                "Cannot grant missing advancement timebound:%s to %s"
+                    .formatted(id, player.getName())
+            );
             return;
         }
 
         AdvancementProgress progress = player.getAdvancementProgress(advancement);
-        if (!progress.isDone() && progress.getRemainingCriteria().contains(criteria)) {
+
+        if (progress.getRemainingCriteria().contains(criteria)) {
             progress.awardCriteria(criteria);
         }
     }

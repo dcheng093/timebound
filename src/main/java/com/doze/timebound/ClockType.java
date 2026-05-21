@@ -1,12 +1,13 @@
 package com.doze.timebound;
 
-import net.kyori.adventure.text.format.TextColor;
-import org.bukkit.Particle;
-
 import java.util.Locale;
 
+import org.bukkit.Particle;
+
+import net.kyori.adventure.text.format.TextColor;
+
 public enum ClockType {
-    // Internal keys are kept for back-compat with existing items/recipes.
+    // internal keys are kept for back-compat with existing items/recipes.
     FREEZE("freeze", "Lunar Dial Clock", TextColor.fromHexString("#73D9FF"), Particle.SNOWFLAKE),
     BRAKE("brake", "Chrono Lock Clock", TextColor.fromHexString("#BDBDBD"), Particle.ASH),
     SKIP("skip", "Flashstep Clock", TextColor.fromHexString("#FFD95E"), Particle.ELECTRIC_SPARK),
