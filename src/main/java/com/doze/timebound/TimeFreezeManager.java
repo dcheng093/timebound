@@ -14,30 +14,21 @@ import org.bukkit.util.Vector;
 import java.util.*;
 
 public class TimeFreezeManager {
-    // Total buffered damage that can be released when a freeze ends (5 hearts).
     private static final double MAX_FREEZE_BLADE_DAMAGE = 10.0;
-
     private static final Set<UUID> frozen = new HashSet<>();
     private static final Map<UUID, Location> lockedLocation = new HashMap<>();
-
     private static final Map<UUID, Double> damageBuffer = new HashMap<>();
     private static final Map<UUID, Player> damageSourceBuffer = new HashMap<>();
     private static final Map<UUID, ItemStack> weaponBuffer = new HashMap<>();
     private static final Map<UUID, Vector> knockbackBuffer = new HashMap<>();
-
     private static BukkitTask lockTask;
-
-    /**
-     * Starts the freeze lock loop (main-thread). This iterates only the frozen UUID set,
-     * not all entities in all worlds.
-     */
     public static synchronized void start(Plugin plugin) {
         if (lockTask != null) return;
         lockTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (frozen.isEmpty()) return;
-            // Snapshot to avoid CME if freeze/unfreeze happens during iteration.
-            UUID[] ids = frozen.toArray(new UUID[0]);
-            for (UUID id : ids) {
+            Object[] ids = frozen.toArray();
+            for (Object o : ids) {
+                UUID id = (UUID) o;
                 Entity e = Bukkit.getEntity(id);
                 if (e == null || !e.isValid()) {
                     frozen.remove(id);
@@ -89,11 +80,9 @@ public class TimeFreezeManager {
     public static void applyBufferedDamage(Entity e) {
         UUID id = e.getUniqueId();
         if (!damageBuffer.containsKey(id)) return;
-
         double damage = Math.min(MAX_FREEZE_BLADE_DAMAGE, damageBuffer.get(id));
         if (damage > 0 && e instanceof LivingEntity le) {
             Player attacker = damageSourceBuffer.get(id);
-
             le.setNoDamageTicks(0);
 
             if (attacker != null) {
@@ -116,7 +105,6 @@ public class TimeFreezeManager {
         UUID id = e.getUniqueId();
         Vector current = knockbackBuffer.getOrDefault(id, new Vector(0, 0, 0));
         current.add(v);
-
         if (current.lengthSquared() > 9.0) {
             current.normalize().multiply(3.0);
         }

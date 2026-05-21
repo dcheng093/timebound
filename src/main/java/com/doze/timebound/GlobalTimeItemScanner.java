@@ -18,10 +18,9 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * Best-effort global scanner.
- *
- * Important: Inventory/entity access must happen on the main thread. We snapshot the
- * ItemStacks synchronously, then process + publish async.
+ * best-effort global scanner
+ * important: inventory/entity access must happen on the main thread. we snapshot the
+ * itemStacks synchronously, then process + publish async.
  */
 public final class GlobalTimeItemScanner {
     public enum Reason {
@@ -48,15 +47,14 @@ public final class GlobalTimeItemScanner {
     }
 
     public void requestScan(Reason reason) {
-        // Coalesce scans: if one is running, let it finish; next periodic/event will refresh soon anyway.
+        // coalesce scans: if one is running, let it finish. next periodic/event will refresh soon anyway
         if (!scanRunning.compareAndSet(false, true)) return;
-
         Bukkit.getScheduler().runTask(plugin, () -> {
             ConcurrentLinkedQueue<ItemStack> snapshot = new ConcurrentLinkedQueue<>();
 
             for (Player player : Bukkit.getOnlinePlayers()) {
                 addInventory(snapshot, player.getInventory(), true);
-                // Ender chest is blocked, but still part of "global existence" for enforcement.
+                // ender chest is blocked, but still part of "global existence" for enforcement
                 addInventory(snapshot, player.getEnderChest(), true);
             }
 
@@ -81,7 +79,6 @@ public final class GlobalTimeItemScanner {
                     }
                 }
             }
-
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                 try {
                     Set<GlobalTimeItemRegistry.Record> records = new HashSet<>();
@@ -89,14 +86,10 @@ public final class GlobalTimeItemScanner {
                         if (!TimeBoundItems.isTimeItem(plugin, stack) && !TimeBoundItems.isMasterOfTime(plugin, stack)) {
                             continue;
                         }
-                        // Snapshot copies: ensure a UID exists so the registry can track it even if the live item is legacy.
                         TimeItemUid.ensure(plugin, stack);
                         registry.identify(stack).ifPresent(records::add);
                     }
-
-                    // Best-effort offline scan from playerdata files (reflection-only; may no-op on API-only runtimes).
                     records.addAll(OfflinePlayerdataScanner.scan(plugin, registry));
-
                     registry.publish(records);
                 } catch (Throwable t) {
                     plugin.getLogger().warning("Global scan failed: %s".formatted(t.getMessage()));
@@ -112,7 +105,6 @@ public final class GlobalTimeItemScanner {
         boolean changed = false;
         ItemStack[] contents = inv.getContents();
         if (contents == null) return;
-
         for (int i = 0; i < contents.length; i++) {
             ItemStack stack = contents[i];
             if (stack == null || stack.getType().isAir()) continue;
@@ -134,7 +126,7 @@ public final class GlobalTimeItemScanner {
     }
 
     /**
-     * Offline scan: implemented separately to keep the main scanner API-only clean.
+     * offline scan
      */
     private static final class OfflinePlayerdataScanner {
         private OfflinePlayerdataScanner() {}
@@ -163,10 +155,6 @@ public final class GlobalTimeItemScanner {
         }
     }
 
-    /**
-     * Minimal NBT parser for offline scanning. We only need enough to walk player inventories and
-     * detect items containing our PDC keys.
-     */
     @SuppressWarnings("all")
     private static final class PlayerDatNbtScanner {
         private static final byte TAG_END = 0;
@@ -208,7 +196,6 @@ public final class GlobalTimeItemScanner {
             Object v = root.get(key);
             if (!(v instanceof NbtList list)) return;
             if (list.elementType != TAG_COMPOUND) return;
-
             for (Object o : list.elements) {
                 if (!(o instanceof NbtCompound item)) continue;
                 extractTimeRecordsFromItem(plugin, item, out);
@@ -216,29 +203,24 @@ public final class GlobalTimeItemScanner {
         }
 
         private static void extractTimeRecordsFromItem(Main plugin, NbtCompound item, Set<GlobalTimeItemRegistry.Record> out) {
-            // On Spigot/Paper, PDC is stored under "tag" -> "PublicBukkitValues" as string keys.
             Object tag = item.get("tag");
             if (!(tag instanceof NbtCompound tagComp))
                 return;
             Object pbv = tagComp.get("PublicBukkitValues");
             if (!(pbv instanceof NbtCompound pbvComp))
                 return;
-
             String uidRaw = getString(pbvComp, plugin.getName().toLowerCase(java.util.Locale.ROOT) + ":" + TimeItemUid.UID_KEY);
             if (uidRaw == null) {
-                // Also accept explicit namespace "timebound" for safety if plugin name changes.
                 uidRaw = getString(pbvComp, "timebound:" + TimeItemUid.UID_KEY);
             }
             if (uidRaw == null)
                 return;
-
             java.util.UUID uid;
             try {
                 uid = java.util.UUID.fromString(uidRaw);
             } catch (IllegalArgumentException ignored) {
                 return;
             }
-
             String weaponType = getString(pbvComp, "timebound:" + TimeBladeItems.TIME_WEAPON_KEY);
             if (weaponType == null) {
                 weaponType = getString(pbvComp, plugin.getName().toLowerCase(java.util.Locale.ROOT) + ":" + TimeBladeItems.TIME_WEAPON_KEY);
@@ -247,7 +229,6 @@ public final class GlobalTimeItemScanner {
                 out.add(new GlobalTimeItemRegistry.Record(uid, GlobalTimeItemRegistry.Kind.WEAPON, weaponType, null));
                 return;
             }
-
             String clockTypeRaw = getString(pbvComp, "timebound:" + TimeClockItems.CLOCK_KEY);
             if (clockTypeRaw == null) {
                 clockTypeRaw = getString(pbvComp, plugin.getName().toLowerCase(java.util.Locale.ROOT) + ":" + TimeClockItems.CLOCK_KEY);
@@ -259,7 +240,6 @@ public final class GlobalTimeItemScanner {
                     return;
                 }
             }
-
             String master = getString(pbvComp, "timebound:" + TimeBoundItems.MASTER_KEY);
             if (master != null) {
                 out.add(new GlobalTimeItemRegistry.Record(uid, GlobalTimeItemRegistry.Kind.MASTER, null, null));
@@ -326,14 +306,11 @@ public final class GlobalTimeItemScanner {
         private static String readUtf(java.io.DataInputStream in) throws java.io.IOException {
             return in.readUTF();
         }
-
         private static final class NbtCompound {
             private final java.util.Map<String, ?> map;
-
             NbtCompound(java.util.Map<String, Object> map) {
                 this.map = map;
             }
-
             Object get(String key) {
                 return map.get(key);
             }

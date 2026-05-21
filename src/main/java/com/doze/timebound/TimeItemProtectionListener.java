@@ -31,40 +31,31 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public class TimeItemProtectionListener implements Listener {
     private final Main plugin;
     private final Set<UUID> announcedRescues = new HashSet<>();
-
     public TimeItemProtectionListener(Main plugin) {
         this.plugin = plugin;
     }
-
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         Bukkit.getScheduler().runTask(plugin, () -> removeTimeItemsFromEnderChest(plugin, event.getPlayer()));
     }
-
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onItemDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Item item)) return;
         if (!TimeBoundItems.isTimeItem(plugin, item.getItemStack())) return;
-
-        // Time items are indestructible.
         event.setCancelled(true);
-
         EntityDamageEvent.DamageCause cause = event.getCause();
         if (isFireOrLava(cause)) {
             rescueItem(item, "was saved from lava/fire");
             return;
         }
-
         if (cause == EntityDamageEvent.DamageCause.VOID) {
             rescueItem(item, "was pulled back from the void");
             return;
         }
-
         if (cause == EntityDamageEvent.DamageCause.CONTACT) {
             rescueItem(item, "was saved from a cactus");
         }
     }
-
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDespawn(ItemDespawnEvent event) {
         Item item = event.getEntity();
@@ -80,7 +71,6 @@ public class TimeItemProtectionListener implements Listener {
     public void onEntityRemove(EntityRemoveEvent event) {
         if (!(event.getEntity() instanceof Item item)) return;
         if (!TimeBoundItems.isTimeItem(plugin, item.getItemStack())) return;
-        // Covers clears, despawns, plugin removals, etc. We treat it as a trigger to refresh the global registry.
         Bukkit.getScheduler().runTask(plugin, () -> plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.DESTRUCTION));
     }
 
@@ -88,25 +78,20 @@ public class TimeItemProtectionListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (event.getView().getTopInventory().getType() != InventoryType.ENDER_CHEST) return;
-
         boolean topSlot = event.getRawSlot() >= 0 && event.getRawSlot() < event.getView().getTopInventory().getSize();
         boolean movingTimeItemIntoEnderChest = false;
-
         if (topSlot && TimeBoundItems.isTimeItem(plugin, event.getCursor())) {
             movingTimeItemIntoEnderChest = true;
         }
-
         if (topSlot && event.getClick().isKeyboardClick()) {
             ItemStack hotbarItem = event.getHotbarButton() >= 0
                     ? player.getInventory().getItem(event.getHotbarButton())
                     : player.getInventory().getItemInOffHand();
             movingTimeItemIntoEnderChest = movingTimeItemIntoEnderChest || TimeBoundItems.isTimeItem(plugin, hotbarItem);
         }
-
         if (event.isShiftClick() && !topSlot && TimeBoundItems.isTimeItem(plugin, event.getCurrentItem())) {
             movingTimeItemIntoEnderChest = true;
         }
-
         if (movingTimeItemIntoEnderChest) {
             event.setCancelled(true);
             denyEnderChest(player);
@@ -119,7 +104,6 @@ public class TimeItemProtectionListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (event.getView().getTopInventory().getType() != InventoryType.ENDER_CHEST) return;
         if (!TimeBoundItems.isTimeItem(plugin, event.getOldCursor())) return;
-
         int topSize = event.getView().getTopInventory().getSize();
         for (int rawSlot : event.getRawSlots()) {
             if (rawSlot >= 0 && rawSlot < topSize) {
@@ -144,15 +128,12 @@ public class TimeItemProtectionListener implements Listener {
         for (int slot = 0; slot < enderChest.getSize(); slot++) {
             ItemStack item = enderChest.getItem(slot);
             if (!TimeBoundItems.isTimeItem(plugin, item)) continue;
-
             enderChest.setItem(slot, null);
             giveOrDrop(plugin, player, item);
             player.sendMessage(Component.text(TimeBoundItems.displayName(plugin, item) + " cannot be stored in an ender chest.", NamedTextColor.RED));
         }
         player.updateInventory();
     }
-
-
 
     private boolean isFireOrLava(EntityDamageEvent.DamageCause cause) {
         return cause == EntityDamageEvent.DamageCause.LAVA
@@ -164,26 +145,19 @@ public class TimeItemProtectionListener implements Listener {
     }
 
     private void rescueItem(Item item, String reason) {
-        // Keep messaging rate-limited per entity.
         if (!announcedRescues.add(item.getUniqueId())) return;
-
-        // Push upwards slightly and extinguish.
         try {
             item.setFireTicks(0);
         } catch (Throwable ignored) {
         }
         item.setVelocity(new Vector(0, Math.max(0.12, item.getVelocity().getY()), 0));
-
-        // If in void-ish, teleport to world spawn.
         Location loc = item.getLocation();
         if (loc.getY() < -64) {
             item.teleport(item.getWorld().getSpawnLocation().clone().add(0, 1.0, 0));
         }
-
         String name = TimeBoundItems.displayName(plugin, item.getItemStack());
         Component message = Component.text(name, NamedTextColor.GOLD)
                 .append(Component.text(" " + reason + ".", NamedTextColor.AQUA));
-
         for (Player player : Bukkit.getOnlinePlayers()) {
             player.sendMessage(message);
             player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 0.35f, 1.6f);
@@ -193,7 +167,6 @@ public class TimeItemProtectionListener implements Listener {
 
     private static void giveOrDrop(Main plugin, Player player, ItemStack item) {
         if (TimeBoundItems.isEmpty(item)) return;
-
         Map<Integer, ItemStack> leftovers = player.getInventory().addItem(item);
         for (ItemStack leftover : leftovers.values()) {
             Item dropped = player.getWorld().dropItemNaturally(player.getLocation(), leftover);

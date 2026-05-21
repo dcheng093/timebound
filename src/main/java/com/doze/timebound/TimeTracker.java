@@ -7,15 +7,12 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 
 public class TimeTracker {
-
     private final List<BlockRecord> records = new ArrayList<>();
-
     public TimeTracker(Main plugin) {
     }
 
     public void record(Location loc, Material before, Material after) {
         if (loc == null || before == null || after == null) return;
-
         records.add(new BlockRecord(loc.clone(), before, after));
     }
 
@@ -35,7 +32,6 @@ public class TimeTracker {
         public final Location location;
         public final Material before;
         public final Material after;
-
         public BlockRecord(Location location, Material before, Material after) {
             this.location = location;
             this.before = before;

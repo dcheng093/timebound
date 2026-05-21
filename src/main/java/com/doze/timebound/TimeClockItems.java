@@ -15,17 +15,13 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 public final class TimeClockItems {
     public static final String CLOCK_KEY = "time_clock";
-
     private TimeClockItems() {
     }
-
     public static ItemStack createClock(Main plugin, ClockType type) {
         ItemStack item = new ItemStack(Material.CLOCK);
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
-
         meta.displayName(Component.text(type.displayName(), type.color()));
-
         List<Component> lore = switch (type) {
             case FREEZE -> List.of(
                     Component.text("A pocket clock that controls time.", NamedTextColor.AQUA),
@@ -75,7 +71,6 @@ public final class TimeClockItems {
                     Component.text("Cooldown: 45 seconds.", NamedTextColor.DARK_GRAY)
             );
         };
-        
         meta.lore(lore);
         meta.setUnbreakable(true);
         meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);

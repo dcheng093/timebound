@@ -66,26 +66,21 @@ import net.kyori.adventure.text.format.TextColor;
 
 
 public class TimeBoundListener implements Listener {
-
-    // Passive chances are weapon-specific; this is only used where an explicit value isn't specified.
     private static final int DEFAULT_PASSIVE_CHANCE = 15;
     private static final int ULT_CHARGE_REQUIRED = 5;
     private static final int FREEZE_PASSIVE_TICKS = 100;
     private static final int SERVER_RADIUS = 50;
     private static final int FREEZE_TICKS = 100;
-
     private final Main plugin;
     private final Map<String, Long> abilityCooldowns = new HashMap<>();
     private final Map<String, Integer> ultCharges = new HashMap<>();
     private final Map<String, BossBar> ultBars = new HashMap<>();
     private final Map<String, BossBar> cooldownBars = new HashMap<>();
     private final Map<String, BossBar> victimBars = new HashMap<>();
-
     private final Deque<ReverseItemAction> reverseItemActions = new ArrayDeque<>();
     private final Map<UUID, Long> reverseAbsorbUntil = new HashMap<>();
     private final Map<UUID, Double> reverseAbsorbedDamage = new HashMap<>();
     private final Map<UUID, DeathSnapshot> recentDeaths = new HashMap<>();
-
     private final Map<UUID, Long> brakeSprintBlockedUntil = new HashMap<>();
     private final Map<UUID, Integer> skipStacks = new HashMap<>();
     private final Map<UUID, Integer> skipCharges = new HashMap<>();
@@ -93,22 +88,16 @@ public class TimeBoundListener implements Listener {
     private final Map<UUID, Long> skipInternalCooldowns = new HashMap<>();
     private final Map<UUID, BossBar> skipChargeBars = new HashMap<>();
     private final Map<UUID, Long> skipLastHitTime = new HashMap<>();
-
-    // Charge system (F / Sneak+F).
     private final Map<UUID, Charging> charging = new HashMap<>();
     private final Map<UUID, BossBar> chargeBars = new HashMap<>();
-
     private record Charging(Blade blade, boolean ultimate, int startTick, int durationTicks) {}
-
     public TimeBoundListener(Main plugin) {
         this.plugin = plugin;
         Bukkit.getScheduler().runTaskTimer(plugin, this::refreshHeldUltMeters, 10L, 10L);
-
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             long now = System.currentTimeMillis();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 UUID id = player.getUniqueId();
-
                 int charges = skipCharges.getOrDefault(id, 3);
                 if (charges < 3) {
                     long lastRegen = skipLastRegen.getOrDefault(id, now);
@@ -123,14 +112,12 @@ public class TimeBoundListener implements Listener {
                         }
                     }
                 }
-
                 Blade heldBlade = getBlade(player.getInventory().getItemInMainHand());
                 if (heldBlade == Blade.SKIP) {
                     updateSkipChargeBar(player, charges, skipLastRegen.getOrDefault(id, now), now);
                 } else {
                     removeSkipChargeBar(player);
                 }
-
                 int stacks = skipStacks.getOrDefault(id, 0);
                 if (stacks > 0) {
                     long lastHit = skipLastHitTime.getOrDefault(id, now);
@@ -138,7 +125,6 @@ public class TimeBoundListener implements Listener {
                         skipStacks.put(id, stacks - 1);
                         applySkipStackEffects(player, stacks - 1);
                         skipLastHitTime.put(id, now);
-
                         if (stacks - 1 > 0) {
                             sendColored(player, NamedTextColor.RED, "Flashstep stacks decaying: " + (stacks - 1) + "/10");
                         } else {
@@ -149,36 +135,16 @@ public class TimeBoundListener implements Listener {
             }
         }, 20L, 20L);
     }
-
-    /**
-     * Comprehensive cooldown reset for all weapon abilities, ultimates, and charges.
-     * Ensures complete reset of:
-     * - Ability cooldowns
-     * - Ultimate charges
-     * - Skip charges and internal cooldowns
-     * - BossBar displays
-     * Also resets clock cooldowns via TimeClockListener.
-     */
     public void resetCooldowns(Player player) {
         UUID id = player.getUniqueId();
-
-        // Reset weapon ability cooldowns
         abilityCooldowns.entrySet().removeIf(entry -> entry.getKey().startsWith(id.toString()));
-        
-        // Reset ultimate charges
         ultCharges.entrySet().removeIf(entry -> entry.getKey().startsWith(id.toString()));
-
-        // Reset skip-specific cooldowns and charges
         skipInternalCooldowns.remove(id);
         skipCharges.put(id, 3);
         skipLastRegen.put(id, System.currentTimeMillis());
         skipStacks.remove(id);
         skipLastHitTime.remove(id);
-
-        // Clear charged state
         charging.remove(id);
-
-        // Remove all BossBar displays
         cooldownBars.entrySet().removeIf(entry -> {
             if (entry.getKey().contains(id.toString())) {
                 entry.getValue().removeAll();
@@ -186,7 +152,6 @@ public class TimeBoundListener implements Listener {
             }
             return false;
         });
-
         ultBars.entrySet().removeIf(entry -> {
             if (entry.getKey().contains(id.toString())) {
                 entry.getValue().removeAll();
@@ -194,20 +159,12 @@ public class TimeBoundListener implements Listener {
             }
             return false;
         });
-        
-        // Remove skip charge bar
         removeSkipChargeBar(player);
-        
-        // Reset clock cooldowns too
         plugin.getClockListener().resetClockCooldowns(player);
-
-        // Play confirmation sound
         Location playerLocation = player.getLocation();
         if (playerLocation != null) {
             playAt(playerLocation, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
         }
-        
-        // Notify player
         player.sendMessage(Component.text("All cooldowns, charges, and stacks have been reset.", NamedTextColor.GREEN));
     }
 
@@ -219,18 +176,11 @@ public class TimeBoundListener implements Listener {
         sendColored(player, NamedTextColor.DARK_RED, "Flashstep stacks cleared.");
     }
 
-    // Activation is bound to swap-hands (F) to match the Time weapon tooltips:
-    // - F: ability
-    // - Sneak + F: ult
-
     private void beginCharge(Player player, Blade blade, boolean ultimate) {
         UUID id = player.getUniqueId();
         if (charging.containsKey(id)) {
-            // Anti-spam: one charge channel at a time.
             return;
         }
-
-        // Pre-check cooldown/charge so we don't start charge UI if we can't cast.
         if (!ultimate) {
             if (!checkAbilityCooldown(player, blade)) return;
         } else {
@@ -239,12 +189,9 @@ public class TimeBoundListener implements Listener {
                 return;
             }
         }
-
-        // Keep skills snappy; ultimates feel heavier.
-        int duration = ultimate ? 20 : 5; // ticks
+        int duration = ultimate ? 20 : 5;
         charging.put(id, new Charging(blade, ultimate, Bukkit.getCurrentTick(), duration));
         showChargeBar(player, blade, ultimate, 0.0);
-
         new BukkitRunnable() {
             int t = 0;
             @Override
@@ -259,24 +206,20 @@ public class TimeBoundListener implements Listener {
                     cancel();
                     return;
                 }
-                // Cancel if player stops sneaking during an ultimate charge.
                 if (ultimate && !player.isSneaking()) {
                     cancelCharge(player);
                     cancel();
                     return;
                 }
-                // Cancel if player swapped away from this blade.
                 if (getBlade(player.getInventory().getItemInMainHand()) != blade) {
                     cancelCharge(player);
                     cancel();
                     return;
                 }
-
                 t++;
                 double progress = Math.min(1.0, t / (double) duration);
                 showChargeBar(player, blade, ultimate, progress);
                 spawnChargeParticles(player, blade, progress);
-
                 if (t >= duration) {
                     cancel();
                     finishCharge(player, blade, ultimate);
@@ -329,14 +272,12 @@ public class TimeBoundListener implements Listener {
 
     private void useAbility(Player player, Blade blade) {
         if (!checkAbilityCooldown(player, blade)) return;
-
         boolean used = switch (blade) {
             case FREEZE -> freezeLookedAtEntity(player);
             case BRAKE -> brakeLookedAtEntity(player);
             case SKIP -> dashForward(player);
             case REVERSE -> startDamageAbsorb(player);
         };
-
         if (used) {
             startAbilityCooldown(player, blade);
         }
@@ -344,7 +285,6 @@ public class TimeBoundListener implements Listener {
 
     private void useUlt(Player player, Blade blade) {
         if (!consumeUltCharge(player, blade)) return;
-
         switch (blade) {
             case FREEZE -> freezeServer(player);
             case BRAKE -> brakeServer(player);
@@ -355,10 +295,8 @@ public class TimeBoundListener implements Listener {
 
     private boolean checkAbilityCooldown(Player player, Blade blade) {
         if (blade == Blade.SKIP) return true;
-
         long cooldownMillis = blade.abilityCooldownMillis;
         if (cooldownMillis <= 0) return true;
-
         String key = chargeKey(player, blade);
         long now = System.currentTimeMillis();
         long readyAt = abilityCooldowns.getOrDefault(key, 0L);
@@ -371,7 +309,6 @@ public class TimeBoundListener implements Listener {
             }
             return false;
         }
-
         return true;
     }
 
@@ -407,7 +344,6 @@ public class TimeBoundListener implements Listener {
             }
             return false;
         }
-
         ultCharges.put(key, 0);
         updateUltBar(player, blade);
         Location playerLocation = player.getLocation();
@@ -423,14 +359,11 @@ public class TimeBoundListener implements Listener {
             player.sendMessage("No entity in sight.");
             return false;
         }
-
         if (target instanceof Player p && TrustManager.isTrusted(player, p)) {
             sendColored(player, NamedTextColor.AQUA, "You cannot freeze a trusted player!");
             return false;
         }
-
         spawnThrownBlade(player, target);
-
         freezeEntity(target, FREEZE_TICKS, true);
         spawnLineParticles(player, target.getLocation(), Particle.SNOWFLAKE, 15);
         target.getWorld().spawnParticle(Particle.CLOUD, target.getLocation().add(0, 1.0, 0), 18, 0.35, 0.7, 0.35, 0.01);
@@ -444,26 +377,21 @@ public class TimeBoundListener implements Listener {
         ItemStack weapon = player.getInventory().getItemInMainHand().clone();
         Location startLoc = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(1.0));
         Location targetLoc = target.getLocation().add(0, 1.0, 0);
-
         Vector dir = targetLoc.toVector().subtract(startLoc.toVector()).normalize();
         double distance = startLoc.distance(targetLoc);
         double speed = 2.5;
         int maxTicks = (int) Math.ceil(distance / speed);
-
         Location displayLoc = startLoc.clone();
         displayLoc.setDirection(dir);
         displayLoc.setPitch(displayLoc.getPitch() + 90f);
-
         ItemDisplay display = player.getWorld().spawn(displayLoc, ItemDisplay.class, entity -> {
             entity.setItemStack(weapon);
             entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.HEAD);
             entity.setTeleportDuration(1);
         });
-
         new BukkitRunnable() {
             int ticks = 0;
             Location currentLoc = displayLoc.clone();
-
             @Override
             public void run() {
                 if (ticks >= maxTicks || !display.isValid() || !target.isValid()) {
@@ -474,12 +402,9 @@ public class TimeBoundListener implements Listener {
                     cancel();
                     return;
                 }
-
                 currentLoc.add(dir.clone().multiply(speed));
                 display.teleport(currentLoc);
-
                 display.getWorld().spawnParticle(Particle.SNOWFLAKE, currentLoc, 3, 0.1, 0.1, 0.1, 0.01);
-
                 ticks++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -491,16 +416,13 @@ public class TimeBoundListener implements Listener {
             player.sendMessage("No entity in sight.");
             return false;
         }
-
         if (target instanceof Player p && TrustManager.isTrusted(player, p)) {
             sendColored(player, NamedTextColor.AQUA, "You cannot brake a trusted player!");
             return false;
         }
-
         target.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 100, 4, false, true, true));
         target.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 100, 0, false, true, true));
         target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 4, false, true, true));
-
         if (target instanceof Player targetPlayer) {
             brakeSprintBlockedUntil.put(targetPlayer.getUniqueId(), System.currentTimeMillis() + 10000);
             targetPlayer.setCooldown(Material.SHIELD, 200);
@@ -524,7 +446,6 @@ public class TimeBoundListener implements Listener {
         long now = System.currentTimeMillis();
         Location playerLocation = player.getLocation();
         if (playerLocation == null) return false;
-
         long nextAllowed = skipInternalCooldowns.getOrDefault(id, 0L);
         if (now < nextAllowed) {
             long left = (long) Math.ceil((nextAllowed - now) / 1000.0);
@@ -532,29 +453,23 @@ public class TimeBoundListener implements Listener {
             playAt(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
             return false;
         }
-
         int charges = skipCharges.getOrDefault(id, 3);
         if (charges <= 0) {
             sendColored(player, NamedTextColor.RED, "No Transmission charges left! Regenerating...");
             playAt(playerLocation, Sound.BLOCK_NOTE_BLOCK_BASS, 0.7f, 0.8f);
             return false;
         }
-
         double maxDistance = 14.0;
         Vector dir = player.getEyeLocation().getDirection().normalize();
         RayTraceResult ray = player.getWorld().rayTraceBlocks(player.getEyeLocation(), dir, maxDistance, FluidCollisionMode.NEVER, true);
-
         double dist = ray != null && ray.getHitBlock() != null ? player.getEyeLocation().toVector().distance(ray.getHitPosition()) : maxDistance;
-
         if (dist < 1.5) {
             sendColored(player, NamedTextColor.RED, "Path is blocked!");
             return false;
         }
-
         Location target = playerLocation.clone().add(dir.multiply(dist - 0.5));
         target.setYaw(playerLocation.getYaw());
         target.setPitch(playerLocation.getPitch());
-
         if (!isSafeDashLocation(target)) {
             Location up = target.clone().add(0, 1, 0);
             if (isSafeDashLocation(up)) {
@@ -565,21 +480,16 @@ public class TimeBoundListener implements Listener {
                 return false;
             }
         }
-
         player.getWorld().spawnParticle(Particle.PORTAL, playerLocation.clone().add(0, 1.0, 0), 50, 0.5, 1.0, 0.5, 0.1);
         playAt(playerLocation, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
-
         player.teleport(target);
-
         player.getWorld().spawnParticle(Particle.PORTAL, target.clone().add(0, 1.0, 0), 50, 0.5, 1.0, 0.5, 0.1);
         playAt(target, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.4f);
-
         skipInternalCooldowns.put(id, now + 3000L);
         if (charges >= 3) {
             skipLastRegen.put(id, System.currentTimeMillis());
         }
         skipCharges.put(id, charges - 1);
-
         return true;
     }
 
@@ -597,7 +507,6 @@ public class TimeBoundListener implements Listener {
             playAt(playerLocation, Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 0.6f);
             playAt(playerLocation, Sound.ENTITY_WARDEN_ROAR, 1.2f, 1.0f);
         }
-
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             Long currentExpiry = reverseAbsorbUntil.get(id);
             if (currentExpiry != null && currentExpiry == expiresAt) {
@@ -635,7 +544,6 @@ public class TimeBoundListener implements Listener {
         )) {
             return;
         }
-
         StarTimerManager.startTimer(plugin, caster, "Lunar Dial: Temporal Domain", 10);
         plugin.getWorldUltimateManager().broadcastUltimate(caster, "Lunar Dial freezes time to its command!", TextColor.color(0x73D9FF));
         caster.getWorld().playSound(caster.getLocation(), Sound.BLOCK_CONDUIT_ACTIVATE, 1.0f, 0.6f);
@@ -698,16 +606,12 @@ public class TimeBoundListener implements Listener {
         undoRecentItemActions(caster);
         caster.getWorld().playSound(caster.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.0f, 0.5f);
         caster.getWorld().spawnParticle(Particle.PORTAL, caster.getLocation().add(0, 1.0, 0), 120, 2.5, 1.5, 2.5, 0.18);
-
-        // Instant rewind event: 5 seconds (100 ticks) back, within 50 blocks.
         World w = caster.getWorld();
         for (Entity entity : w.getNearbyEntities(caster.getLocation(), SERVER_RADIUS, SERVER_RADIUS, SERVER_RADIUS)) {
             if (entity.equals(caster)) continue;
             if (entity instanceof Player p && TrustManager.isTrusted(caster, p)) continue;
-
             TimeManager.EntityState past = plugin.getTimeManager().peekPast(entity, 100);
             if (past == null) continue;
-
             entity.teleport(past.location);
             if (entity instanceof LivingEntity living) {
                 var maxHealthAttr = living.getAttribute(Attribute.MAX_HEALTH);
@@ -716,38 +620,30 @@ public class TimeBoundListener implements Listener {
             }
         }
         plugin.getTimeManager().rewindBlocks(100);
-
         plugin.getWorldUltimateManager().broadcastUltimate(caster, "Requiem twists time backwards!", TextColor.color(0xD58DFF));
     }
 
     @EventHandler
     public void onDamage(EntityDamageEvent event) {
         Entity target = event.getEntity();
-
-        // Eternity sanctuary: cap damage to 6 hearts while active.
         if (event instanceof EntityDamageByEntityEvent byEntity) {
             WorldUltimateManager.Ultimate active = plugin.getWorldUltimateManager().activeUltimate(target.getWorld());
             if (active == WorldUltimateManager.Ultimate.ETERNITY_SANCTUARY) {
                 byEntity.setDamage(Math.min(byEntity.getDamage(), 12.0));
             }
         }
-
         if (TimeFreezeManager.isFrozen(target)) {
             event.setCancelled(true);
-
             if (event.getCause() == EntityDamageEvent.DamageCause.FREEZE) return;
-
             if (event instanceof EntityDamageByEntityEvent byEntity) {
                 target.getWorld().playSound(target.getLocation(), Sound.ENTITY_PLAYER_HURT_FREEZE, 0.4f, 1.2f);
                 double capped = Math.min(5.0, event.getDamage());
                 if (byEntity.getDamager() instanceof Player attacker) {
                     ItemStack weapon = attacker.getInventory().getItemInMainHand();
                     TimeFreezeManager.bufferDamage(target, capped, attacker, weapon);
-
                     if (getBlade(weapon) == Blade.FREEZE) {
                         spawnIceSlash(target.getLocation().clone().add(0, 1.0, 0));
                     }
-
                 } else {
                     TimeFreezeManager.bufferDamage(target, capped);
                 }
@@ -760,9 +656,7 @@ public class TimeBoundListener implements Listener {
             }
             return;
         }
-
         if (!(event.getEntity() instanceof Player player)) return;
-
         UUID id = player.getUniqueId();
         Long until = reverseAbsorbUntil.get(id);
         if (until != null && until >= System.currentTimeMillis()) {
@@ -771,16 +665,13 @@ public class TimeBoundListener implements Listener {
             player.getWorld().spawnParticle(Particle.WITCH, player.getLocation(), 10, 0.5, 0.5, 0.5, 0.01);
             return;
         }
-
         if (until != null) {
             releaseAbsorbedDamage(player);
         }
-
         int stacks = skipStacks.getOrDefault(id, 0);
         if (stacks > 0) {
             skipStacks.put(id, stacks - 1);
             applySkipStackEffects(player, stacks - 1);
-
             if (stacks - 1 > 0) {
                 sendColored(player, NamedTextColor.RED, "Flashstep stacks lowered: " + (stacks - 1) + "/10");
             } else {
@@ -792,25 +683,18 @@ public class TimeBoundListener implements Listener {
     @EventHandler
     public void onHit(EntityDamageByEntityEvent event) {
         Entity target = event.getEntity();
-
         if (TimeFreezeManager.isFrozen(target)) {
             return;
         }
-
         if (!(event.getDamager() instanceof Player attacker)) return;
         if (!(target instanceof LivingEntity victim)) return;
-
         Blade blade = getBlade(attacker.getInventory().getItemInMainHand());
         if (blade == null) return;
-
         if (victim instanceof Player p && TrustManager.isTrusted(attacker, p)) return;
-
         if (blade == Blade.FREEZE) {
             spawnIceSlash(victim.getLocation().clone().add(0, 1.0, 0));
         }
-
         boolean isCriticalHit = attacker.getFallDistance() > 0.0f && !attacker.isInsideVehicle() && !(attacker.getLocation().getY() <= attacker.getWorld().getMinHeight());
-
         switch (blade) {
             case FREEZE -> {
                 if (isCriticalHit) {
@@ -841,18 +725,14 @@ public class TimeBoundListener implements Listener {
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
         if (!(event.getEntity() instanceof Player)) return;
-
         Player killer = event.getEntity().getKiller();
         if (killer == null) return;
-
         Blade blade = getBlade(killer.getInventory().getItemInMainHand());
         if (blade == null) return;
-
         String key = chargeKey(killer, blade);
         int charge = Math.min(ULT_CHARGE_REQUIRED, ultCharges.getOrDefault(key, 0) + 1);
         ultCharges.put(key, charge);
         updateUltBar(killer, blade);
-
         if (charge >= ULT_CHARGE_REQUIRED) {
             sendColored(killer, NamedTextColor.GREEN, blade.displayName + " ult is fully charged.");
             Location killerLocation = killer.getLocation();
@@ -885,17 +765,14 @@ public class TimeBoundListener implements Listener {
     @EventHandler
     public void onPickupItem(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
-
         Item item = event.getItem();
         boolean isDeathDrop = false;
-
         for (DeathSnapshot snapshot : recentDeaths.values()) {
             if (snapshot.droppedItemEntities.contains(item.getUniqueId())) {
                 snapshot.pickedUpItems.add(new PickedUp(player.getUniqueId(), item.getItemStack().clone()));
                 isDeathDrop = true;
             }
         }
-
         if (!isDeathDrop) {
             reverseItemActions.addLast(new ReverseItemAction(
                     ReverseItemActionType.PICKUP,
@@ -926,12 +803,10 @@ public class TimeBoundListener implements Listener {
     public void onToggleSprint(PlayerToggleSprintEvent event) {
         Long until = brakeSprintBlockedUntil.get(event.getPlayer().getUniqueId());
         if (until == null) return;
-
         if (until < System.currentTimeMillis()) {
             brakeSprintBlockedUntil.remove(event.getPlayer().getUniqueId());
             return;
         }
-
         if (event.isSprinting()) {
             event.setCancelled(true);
             event.getPlayer().setSprinting(false);
@@ -941,14 +816,12 @@ public class TimeBoundListener implements Listener {
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
-
         List<UUID> droppedUUIDs = new ArrayList<>();
         for (ItemStack drop : event.getDrops()) {
             Item item = player.getWorld().dropItemNaturally(player.getLocation(), drop);
             droppedUUIDs.add(item.getUniqueId());
         }
         event.getDrops().clear();
-
         ItemStack[] contents = player.getInventory().getContents();
         ItemStack[] contentsCopy = contents != null ? contents.clone() : new ItemStack[0];
         recentDeaths.put(player.getUniqueId(), new DeathSnapshot(
@@ -959,7 +832,6 @@ public class TimeBoundListener implements Listener {
                 droppedUUIDs,
                 new ArrayList<>()
         ));
-
         Bukkit.getScheduler().runTaskLater(plugin, () -> recentDeaths.remove(player.getUniqueId()), 100L);
     }
 
@@ -980,7 +852,6 @@ public class TimeBoundListener implements Listener {
     }
 
     private void applyFreezePassive(LivingEntity victim) {
-        // Lunar Dial passive: 5% chance on critical hit to slow + freeze.
         if (ThreadLocalRandom.current().nextInt(100) >= 5) return;
         applyPowderSnowPassive(victim);
         victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 1, false, true, true));
@@ -989,15 +860,12 @@ public class TimeBoundListener implements Listener {
 
     private void applyPowderSnowPassive(LivingEntity victim) {
         victim.setFreezeTicks(victim.getMaxFreezeTicks() + FREEZE_PASSIVE_TICKS);
-
         keepPowderSnowOverlay(victim, FREEZE_PASSIVE_TICKS, false);
         if (victim instanceof Player player) {
             showVictimTimer(player, "Powdered Snow", FREEZE_PASSIVE_TICKS / 20, BarColor.BLUE);
         }
-
         new BukkitRunnable() {
             private int elapsed;
-
             @Override
             public void run() {
                 if (!victim.isValid() || elapsed >= FREEZE_PASSIVE_TICKS) {
@@ -1012,7 +880,6 @@ public class TimeBoundListener implements Listener {
     }
 
     private void applyBrakePassive(LivingEntity victim) {
-        // Chrono Lock passive: 15% chance on hit to weaken.
         if (!rollPassive()) return;
         victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 80, 0, false, true, true));
         victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 80, 0, false, true, true));
@@ -1026,13 +893,10 @@ public class TimeBoundListener implements Listener {
     private void applySkipPassive(Player attacker) {
         UUID id = attacker.getUniqueId();
         int currentStacks = skipStacks.getOrDefault(id, 0);
-
         int stacks = Math.min(10, currentStacks + 1);
         skipStacks.put(id, stacks);
         skipLastHitTime.put(id, System.currentTimeMillis());
-
         sendColored(attacker, NamedTextColor.YELLOW, "Flashstep Stacks: " + stacks + "/10");
-
         applySkipStackEffects(attacker, stacks);
         Location attackerLocation = attacker.getLocation();
         if (attackerLocation != null) {
@@ -1043,31 +907,24 @@ public class TimeBoundListener implements Listener {
 
     private void applySkipStackEffects(Player player, int stacks) {
         AttributeInstance speedAttr = player.getAttribute(Attribute.MOVEMENT_SPEED);
-
         NamespacedKey speedKey = new NamespacedKey(plugin, "skip_speed");
-
         if (speedAttr != null) {
             for (AttributeModifier mod : speedAttr.getModifiers()) {
                 if (mod.getKey().equals(speedKey)) speedAttr.removeModifier(mod);
             }
         }
-
         if (stacks <= 0) {
             skipStacks.remove(player.getUniqueId());
             return;
         }
-
         if (speedAttr != null) {
-            // Progressive speed scaling; stacks cap at 10.
             speedAttr.addModifier(new AttributeModifier(speedKey, Math.min(0.60, stacks * 0.06), AttributeModifier.Operation.ADD_SCALAR));
         }
     }
 
     private void applyReversePassive(Player attacker) {
-        // Requiem passive: 3-5% chance on critical hit.
-        int chance = ThreadLocalRandom.current().nextInt(3, 6); // 3..5
+        int chance = ThreadLocalRandom.current().nextInt(3, 6);
         if (ThreadLocalRandom.current().nextInt(100) >= chance) return;
-
         plugin.getTimeManager().rewindHealth(attacker, 100);
         Location attackerLocation = attacker.getLocation();
         if (attackerLocation != null) {
@@ -1083,7 +940,6 @@ public class TimeBoundListener implements Listener {
         Double storedDamage = reverseAbsorbedDamage.remove(id);
         double damage = storedDamage == null ? 0.0 : storedDamage;
         if (damage <= 0) return;
-
         double radius = Math.min(12.0, 3.0 + damage / 4.0);
         Location origin = player.getLocation();
         playAt(origin, Sound.ENTITY_GENERIC_EXPLODE, 1.8f, 0.9f);
@@ -1092,11 +948,9 @@ public class TimeBoundListener implements Listener {
         player.getWorld().spawnParticle(Particle.EXPLOSION, origin, 1);
         player.getWorld().spawnParticle(Particle.SONIC_BOOM, origin.clone().add(0, 1.0, 0), 1);
         player.getWorld().spawnParticle(Particle.WITCH, origin.clone().add(0, 1.0, 0), 60, radius / 3, 1.0, radius / 3, 0.05);
-
         for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
             if (entity.equals(player) || !(entity instanceof LivingEntity living)) continue;
             if (living instanceof Player p && TrustManager.isTrusted(player, p)) continue;
-
             double distance = Math.max(1.0, living.getLocation().distance(origin));
             double falloff = Math.max(0.35, 1.0 - (distance / radius));
             double shockwaveDamage = Math.min(18.0, Math.max(2.0, damage * 0.5 * falloff));
@@ -1107,7 +961,6 @@ public class TimeBoundListener implements Listener {
                     .multiply(0.8 + falloff * 0.8));
             living.getWorld().spawnParticle(Particle.REVERSE_PORTAL, living.getLocation().clone().add(0, 1.0, 0), 20, 0.35, 0.6, 0.35, 0.05);
         }
-
         double absorptionAmount = damage * 0.375;
         player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 200, 0, false, true, true));
         if (player instanceof LivingEntity living) {
@@ -1128,24 +981,20 @@ public class TimeBoundListener implements Listener {
     private void reviveRecentDeaths(Player caster) {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.equals(caster)) continue;
-
             DeathSnapshot snapshot = recentDeaths.remove(player.getUniqueId());
             if (snapshot == null) continue;
-
             for (UUID itemId : snapshot.droppedItemEntities) {
                 Entity entity = Bukkit.getEntity(itemId);
                 if (entity instanceof Item) {
                     entity.remove();
                 }
             }
-
             for (PickedUp pu : snapshot.pickedUpItems) {
                 Player picker = Bukkit.getPlayer(pu.picker);
                 if (picker != null && picker.isOnline()) {
                     removeFromInventory(picker.getInventory(), pu.item);
                 }
             }
-
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (!player.isOnline()) return;
                 if (player.isDead()) {
@@ -1165,7 +1014,6 @@ public class TimeBoundListener implements Listener {
     private void undoRecentItemActions(Player caster) {
         long cutoff = System.currentTimeMillis() - 5000;
         Map<UUID, List<ReverseItemAction>> actionsByItem = new HashMap<>();
-
         while (!reverseItemActions.isEmpty()) {
             ReverseItemAction action = reverseItemActions.removeLast();
             if (action.timestamp < cutoff) break;
@@ -1175,10 +1023,8 @@ public class TimeBoundListener implements Listener {
                 actionsByItem.computeIfAbsent(action.itemEntityId, ignored -> new ArrayList<>()).add(action);
             }
         }
-
         for (List<ReverseItemAction> actions : actionsByItem.values()) {
             actions.sort(Comparator.comparingLong(ReverseItemAction::timestamp));
-
             ReverseItemAction firstDrop = null;
             ReverseItemAction lastPickup = null;
             for (ReverseItemAction action : actions) {
@@ -1188,7 +1034,6 @@ public class TimeBoundListener implements Listener {
                     lastPickup = action;
                 }
             }
-
             if (firstDrop != null) {
                 removeTrackedItemEntity(firstDrop.itemEntityId);
                 if (lastPickup != null) {
@@ -1197,7 +1042,6 @@ public class TimeBoundListener implements Listener {
                         removeFromInventory(picker.getInventory(), lastPickup.item.clone());
                     }
                 }
-
                 Player dropper = Bukkit.getPlayer(firstDrop.playerId);
                 if (dropper != null && dropper.isOnline()) {
                     giveOrDrop(dropper, firstDrop.item.clone());
@@ -1240,12 +1084,10 @@ public class TimeBoundListener implements Listener {
         int remaining = item.getAmount();
         ItemStack template = item.clone();
         template.setAmount(1);
-
         ItemStack[] contents = inventory.getContents();
         if (contents == null) return;
         for (ItemStack content : contents) {
             if (content == null || !content.isSimilar(template)) continue;
-
             int removed = Math.min(remaining, content.getAmount());
             content.setAmount(content.getAmount() - removed);
             remaining -= removed;
@@ -1273,7 +1115,6 @@ public class TimeBoundListener implements Listener {
         }
         entity.getWorld().spawnParticle(Particle.SNOWFLAKE, entity.getLocation(), 30, 0.4, 0.6, 0.4, 0.01);
         entity.getWorld().spawnParticle(Particle.ITEM_SNOWBALL, entity.getLocation().add(0, 1.0, 0), 12, 0.3, 0.5, 0.3, 0.02);
-
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             TimeFreezeManager.unfreeze(entity);
             TimeFreezeManager.applyBufferedDamage(entity);
@@ -1285,14 +1126,12 @@ public class TimeBoundListener implements Listener {
     private void keepPowderSnowOverlay(LivingEntity entity, int ticks, boolean requireFrozen) {
         new BukkitRunnable() {
             private int elapsed;
-
             @Override
             public void run() {
                 if (!entity.isValid() || (requireFrozen && !TimeFreezeManager.isFrozen(entity)) || elapsed >= ticks) {
                     cancel();
                     return;
                 }
-
                 entity.setFreezeTicks(entity.getMaxFreezeTicks() + 40);
                 elapsed += 5;
             }
@@ -1307,7 +1146,6 @@ public class TimeBoundListener implements Listener {
                 0.75,
                 entity -> entity instanceof LivingEntity && !entity.equals(player)
         );
-
         if (result == null || !(result.getHitEntity() instanceof LivingEntity living)) return null;
         return living;
     }
@@ -1335,22 +1173,15 @@ public class TimeBoundListener implements Listener {
         Player player = event.getPlayer();
         Blade mainHandBlade = getBlade(event.getMainHandItem());
         Blade offHandBlade = getBlade(event.getOffHandItem());
-
-        // If a Time weapon is in the main hand, use F as the activation key.
         if (mainHandBlade != null) {
             event.setCancelled(true);
-            // Some servers have other plugins cancelling swap-hand; still show immediate feedback.
             player.sendActionBar(Component.text("Charging " + mainHandBlade.displayName + "...", NamedTextColor.YELLOW));
             beginCharge(player, mainHandBlade, player.isSneaking());
-
-            // Also enforce offhand rules (in case the player is dual-wielding due to plugins/desync).
             if (offHandBlade != null) {
                 Bukkit.getScheduler().runTask(plugin, () -> enforceSingleHeldBlade(player));
             }
             return;
         }
-
-        // Time weapons are never allowed in offhand.
         if (offHandBlade != null) {
             event.setCancelled(true);
             Bukkit.getScheduler().runTask(plugin, () -> enforceSingleHeldBlade(player));
@@ -1361,34 +1192,24 @@ public class TimeBoundListener implements Listener {
     public void onHeldSlotChange(PlayerItemHeldEvent event) {
         Bukkit.getScheduler().runTask(plugin, () -> enforceSingleHeldBlade(event.getPlayer()));
     }
-
-    // Fallback input path: if a server/mod/plugin prevents swap-hands packets, allow
-    // double-sneak to trigger the skill while holding a Time weapon.
     private final Map<UUID, Long> lastSneakTap = new HashMap<>();
     private static final long DOUBLE_SNEAK_WINDOW_MS = 300L;
-
     @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
     public void onToggleSneak(PlayerToggleSneakEvent event) {
         Player player = event.getPlayer();
-        // Only on entering sneak (press), to avoid double-counting.
         if (!event.isSneaking()) return;
-
         Blade held = getBlade(player.getInventory().getItemInMainHand());
         if (held == null) return;
-
         long now = System.currentTimeMillis();
         long last = lastSneakTap.getOrDefault(player.getUniqueId(), 0L);
         lastSneakTap.put(player.getUniqueId(), now);
         if (now - last > DOUBLE_SNEAK_WINDOW_MS) return;
-
-        // Double-sneak => skill fallback.
         beginCharge(player, held, false);
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        // Creative inventory is client-driven; mutating inventories here can cause flicker/disappearing items.
         if (player.getGameMode() == GameMode.CREATIVE) return;
         Bukkit.getScheduler().runTask(plugin, () -> enforceSingleHeldBlade(player));
     }
@@ -1403,11 +1224,6 @@ public class TimeBoundListener implements Listener {
     @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
     public void onInventoryCreative(InventoryCreativeEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        
-        // DO NOT modify items during creative event - this causes client desync and disappearing items.
-        // Instead, defer all operations until the client transaction is complete.
-        
-        // Log for test mode
         boolean testMode = plugin.getConfig().getBoolean("testMode", false);
         if (testMode) {
             ItemStack cursor = event.getCursor();
@@ -1415,25 +1231,15 @@ public class TimeBoundListener implements Listener {
                 plugin.getGlobalRegistry().logDuplicateViolation(player.getName() + " handled a TimeBound item via creative inventory.");
             }
         }
-        
-        // Defer validation and enforcement by 2 ticks to let the client settle the creative transaction.
-        // This prevents item disappearance due to client-server desync.
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
-            
             if (!testMode) {
-                // Regenerate UIDs on TimeBound items to prevent duplicates
                 regenerateTimeBoundUIDs(player.getInventory());
             }
-            
             enforceSingleHeldBlade(player);
         }, 2L);
     }
     
-    /**
-     * Safely regenerates UIDs on TimeBound items after creative transaction completes.
-     * Only modifies items after the client has finished the transaction.
-     */
     private void regenerateTimeBoundUIDs(PlayerInventory inventory) {
         boolean changed = false;
         for (int i = 0; i < inventory.getSize(); i++) {
@@ -1443,9 +1249,7 @@ public class TimeBoundListener implements Listener {
                 changed = true;
             }
         }
-        
         if (changed) {
-            // Single updateInventory call after all modifications
             Player owner = null;
             for (Player p : Bukkit.getOnlinePlayers()) {
                 if (p.getInventory().equals(inventory)) {
@@ -1454,12 +1258,10 @@ public class TimeBoundListener implements Listener {
                 }
             }
             if (owner != null && owner.getGameMode() == GameMode.CREATIVE) {
-                // Use a delayed updateInventory to prevent desync
                 Bukkit.getScheduler().runTask(plugin, owner::updateInventory);
             }
         }
     }
-
 
     private boolean rollPassive() {
         return ThreadLocalRandom.current().nextInt(100) < DEFAULT_PASSIVE_CHANCE;
@@ -1471,11 +1273,9 @@ public class TimeBoundListener implements Listener {
         BossBar bar = ultBars.computeIfAbsent(key, ignored -> {
             return Bukkit.createBossBar("", blade.barColor, BarStyle.SEGMENTED_10);
         });
-
         if (!bar.getPlayers().contains(player)) {
             bar.addPlayer(player);
         }
-
         double progress = Math.max(0.0, Math.min(1.0, (double) charge / ULT_CHARGE_REQUIRED));
         bar.setProgress(progress);
         bar.setTitle(blade.displayName + " Ult Charge: " + charge + "/" + ULT_CHARGE_REQUIRED + " players");
@@ -1499,7 +1299,6 @@ public class TimeBoundListener implements Listener {
     private void refreshHeldUltMeters() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             Blade heldBlade = getBlade(player.getInventory().getItemInMainHand());
-
             for (Blade blade : Blade.values()) {
                 BossBar bar = ultBars.get(chargeKey(player, blade));
                 if (bar != null) {
@@ -1508,7 +1307,6 @@ public class TimeBoundListener implements Listener {
                     }
                 }
             }
-
             if (heldBlade != null) {
                 updateUltBar(player, heldBlade);
             }
@@ -1519,24 +1317,19 @@ public class TimeBoundListener implements Listener {
         String key = "cooldown:" + chargeKey(player, blade);
         BossBar old = cooldownBars.remove(key);
         if (old != null) old.removeAll();
-
         BossBar bar = Bukkit.createBossBar(blade.displayName + " Cooldown", blade.barColor, BarStyle.SOLID);
         bar.addPlayer(player);
         cooldownBars.put(key, bar);
-
         long totalMillis = blade.abilityCooldownMillis;
         long startedAt = System.currentTimeMillis();
-
         new BukkitRunnable() {
             @Override
             public void run() {
                 long elapsed = System.currentTimeMillis() - startedAt;
                 long remaining = Math.max(0L, totalMillis - elapsed);
                 double progress = Math.max(0.0, Math.min(1.0, (double) remaining / totalMillis));
-
                 bar.setProgress(progress);
                 bar.setTitle(blade.displayName + " Cooldown: " + (long) Math.ceil(remaining / 1000.0) + "s");
-
                 if (remaining <= 0 || !player.isOnline()) {
                     bar.removeAll();
                     cooldownBars.remove(key);
@@ -1552,11 +1345,9 @@ public class TimeBoundListener implements Listener {
             newBar.addPlayer(player);
             return newBar;
         });
-
         if (!bar.getPlayers().contains(player)) {
             bar.addPlayer(player);
         }
-
         if (charges >= 3) {
             bar.setProgress(1.0);
             bar.setTitle("Flashstep: 3/3 Charges");
@@ -1582,25 +1373,20 @@ public class TimeBoundListener implements Listener {
         String key = "victim:" + player.getUniqueId() + ":" + label;
         BossBar old = victimBars.remove(key);
         if (old != null) old.removeAll();
-
         BossBar bar = Bukkit.createBossBar(label, color, BarStyle.SOLID);
         bar.addPlayer(player);
         victimBars.put(key, bar);
-
         long totalMillis = seconds * 1000L;
         long startedAt = System.currentTimeMillis();
-
         new BukkitRunnable() {
             @Override
             public void run() {
                 long elapsed = System.currentTimeMillis() - startedAt;
                 long remaining = Math.max(0L, totalMillis - elapsed);
                 double progress = Math.max(0.0, Math.min(1.0, (double) remaining / totalMillis));
-
                 bar.setProgress(progress);
                 long secondsRemaining = (long) Math.ceil(remaining / 1000.0);
                 bar.setTitle(label + ": " + secondsRemaining + "s");
-
                 if (remaining <= 0 || !player.isOnline()) {
                     bar.removeAll();
                     victimBars.remove(key);
@@ -1615,7 +1401,6 @@ public class TimeBoundListener implements Listener {
         Vector step = target.clone().add(0, 1.0, 0).toVector()
                 .subtract(start.toVector())
                 .multiply(1.0 / points);
-
         Location current = start.clone();
         for (int i = 0; i < points; i++) {
             current.add(step);
@@ -1627,23 +1412,18 @@ public class TimeBoundListener implements Listener {
         PlayerInventory inventory = player.getInventory();
         Blade offhandBladeType = getBlade(inventory.getItemInOffHand());
         if (offhandBladeType == null) return;
-
         ItemStack offhandBlade = inventory.getItemInOffHand().clone();
         inventory.setItemInOffHand(null);
-
         Map<Integer, ItemStack> leftovers = inventory.addItem(offhandBlade);
         for (ItemStack leftover : leftovers.values()) {
             player.getWorld().dropItemNaturally(player.getLocation(), leftover);
         }
-
         sendColored(player, NamedTextColor.RED, "Time weapons cannot be held in the offhand. The offhand item was moved.");
-        
         enforceSingleClockPerType(player);
     }
 
     private void enforceSingleClockPerType(Player player) {
         Map<ClockType, Integer> clockCount = new HashMap<>();
-        
         for (int i = 0; i < player.getInventory().getSize(); i++) {
             ItemStack item = player.getInventory().getItem(i);
             if (item == null) continue;
@@ -1663,10 +1443,8 @@ public class TimeBoundListener implements Listener {
 
     private Blade getBlade(ItemStack item) {
         if (item == null || item.getType() == Material.AIR) return null;
-
         String type = TimeBladeItems.getTaggedType(item);
         if (type == null) {
-            // Backstop for legacy/desynced items: infer from PersistentDataContainer
             try {
                 ItemMeta meta = item.getItemMeta();
                 if (meta != null) {
@@ -1685,7 +1463,6 @@ public class TimeBoundListener implements Listener {
             }
             return null;
         }
-
         return switch (type.toLowerCase(Locale.ROOT)) {
             case "freeze" -> Blade.FREEZE;
             case "brake" -> Blade.BRAKE;
@@ -1700,11 +1477,9 @@ public class TimeBoundListener implements Listener {
         BRAKE("Chrono Lock", 60_000L, BarColor.WHITE),
         SKIP("Flashstep", 0L, BarColor.YELLOW),
         REVERSE("Requiem", 30_000L, BarColor.PURPLE);
-
         private final String displayName;
         private final long abilityCooldownMillis;
         private final BarColor barColor;
-
         Blade(String displayName, long abilityCooldownMillis, BarColor barColor) {
             this.displayName = displayName;
             this.abilityCooldownMillis = abilityCooldownMillis;
@@ -1739,43 +1514,57 @@ public class TimeBoundListener implements Listener {
     ) {
     }
 
-    // ============ Public API for KeybindManager ============
-    
-    /**
-     * Public entry point for weapon ability activation (from KeybindManager).
-     */
     public void activateWeaponAbility(Player player, KeybindManager.Weapon weapon) {
-        boolean used = switch (weapon) {
-            case FREEZE -> freezeLookedAtEntity(player);
-            case BRAKE -> brakeLookedAtEntity(player);
-            case SKIP -> dashForward(player);
-            case REVERSE -> startDamageAbsorb(player);
-            default -> false;
-        };
-
-        if (used && weapon != KeybindManager.Weapon.SKIP) {
-            startAbilityCooldown(player, weapon);
-        }
-    }
-
-    /**
-     * Public entry point for weapon ultimate activation (from KeybindManager).
-     */
-    public void activateWeaponUltimate(Player player, KeybindManager.Weapon weapon) {
-        if (!consumeUltCharge(player, weapon)) return;
-
         switch (weapon) {
-            case FREEZE -> freezeServer(player);
-            case BRAKE -> brakeServer(player);
-            case SKIP -> skipServer(player);
-            case REVERSE -> reverseWorld(player);
+            case FREEZE -> {
+                if (freezeLookedAtEntity(player)) {
+                    startAbilityCooldown(player, weapon);
+                }
+            }
+            case BRAKE -> {
+                if (brakeLookedAtEntity(player)) {
+                    startAbilityCooldown(player, weapon);
+                }
+            }
+            case SKIP -> dashForward(player);
+            case REVERSE -> {
+                if (startDamageAbsorb(player)) {
+                    startAbilityCooldown(player, weapon);
+                }
+            }
+            case MASTER -> plugin.getMasterListener().activateMasterAbility(player);
             default -> {}
         }
     }
 
-    /**
-     * Wrapper for ability cooldown check.
-     */
+    public void activateWeaponUltimate(Player player, KeybindManager.Weapon weapon) {
+        switch (weapon) {
+            case FREEZE -> {
+                if (consumeUltCharge(player, weapon)) {
+                    freezeServer(player);
+                }
+            }
+            case BRAKE -> {
+                if (consumeUltCharge(player, weapon)) {
+                    brakeServer(player);
+                }
+            }
+            case SKIP -> {
+                if (consumeUltCharge(player, weapon)) {
+                    skipServer(player);
+                }
+            }
+            case REVERSE -> {
+                if (consumeUltCharge(player, weapon)) {
+                    reverseWorld(player);
+                }
+            }
+            case MASTER -> plugin.getMasterListener().activateMasterUltimate(player);
+            case TIME_CLOCK -> {}
+            default -> {}
+        }
+    }
+
     private void startAbilityCooldown(Player player, KeybindManager.Weapon weapon) {
         Blade blade = switch (weapon) {
             case FREEZE -> Blade.FREEZE;
@@ -1784,15 +1573,11 @@ public class TimeBoundListener implements Listener {
             case REVERSE -> Blade.REVERSE;
             default -> null;
         };
-
         if (blade == null || blade.abilityCooldownMillis <= 0) return;
         abilityCooldowns.put(chargeKey(player, blade), System.currentTimeMillis() + blade.abilityCooldownMillis);
         showCooldownBar(player, blade);
     }
 
-    /**
-     * Wrapper for ultimate charge check.
-     */
     private boolean consumeUltCharge(Player player, KeybindManager.Weapon weapon) {
         Blade blade = switch (weapon) {
             case FREEZE -> Blade.FREEZE;
@@ -1801,9 +1586,7 @@ public class TimeBoundListener implements Listener {
             case REVERSE -> Blade.REVERSE;
             default -> null;
         };
-
         if (blade == null) return false;
-
         String key = chargeKey(player, blade);
         int charge = ultCharges.getOrDefault(key, 0);
         if (charge < ULT_CHARGE_REQUIRED) {
@@ -1815,7 +1598,6 @@ public class TimeBoundListener implements Listener {
             }
             return false;
         }
-
         ultCharges.put(key, 0);
         updateUltBar(player, blade);
         Location playerLocation = player.getLocation();

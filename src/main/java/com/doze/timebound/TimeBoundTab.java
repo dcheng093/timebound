@@ -12,15 +12,12 @@ import java.util.List;
 import java.util.Locale;
 
 public class TimeBoundTab implements TabCompleter {
-
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String alias, String[] args) {
         if (!cmd.getName().equalsIgnoreCase("timebound")) return Collections.emptyList();
-
         boolean isAdmin = sender.hasPermission("timebound.admin") || sender.isOp();
         List<String> options = new ArrayList<>();
         String last = args.length == 0 ? "" : args[args.length - 1].toLowerCase(Locale.ROOT);
-
         if (args.length == 1) {
             if (isAdmin) {
                 options.add("give");
@@ -30,7 +27,6 @@ public class TimeBoundTab implements TabCompleter {
             }
             return filter(options, last);
         }
-
         if (args.length == 2) {
             String sub = args[0].toLowerCase(Locale.ROOT);
             if (sub.equals("give") || sub.equals("spawnclock")) {
@@ -47,10 +43,8 @@ public class TimeBoundTab implements TabCompleter {
                 return filter(options, last);
             }
         }
-
         return Collections.emptyList();
     }
-
     private List<String> filter(List<String> input, String prefix) {
         List<String> out = new ArrayList<>();
         for (String entry : input) {

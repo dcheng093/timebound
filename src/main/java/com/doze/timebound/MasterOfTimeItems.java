@@ -31,44 +31,37 @@ public final class MasterOfTimeItems {
         ItemStack item = new ItemStack(Material.NETHERITE_SWORD);
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
-
-        // High-end name styling: a manual gradient across words.
         Component name = Component.text()
                 .append(Component.text("Eternity", TextColor.color(0xFFD66E), TextDecoration.BOLD))
                 .build();
         meta.displayName(name);
-
         meta.lore(List.of(
                 Component.text(""),
                 Component.text("TEMPORAL DEFIANCE", TextColor.color(0xFFB000), TextDecoration.BOLD),
                 Component.text("The one that stands above all.", NamedTextColor.GRAY),
-                Component.text("Stronger than anything that stands in its way of time.", NamedTextColor.DARK_GRAY),
+                Component.text("Master of all time itself.", NamedTextColor.DARK_GRAY),
                 Component.text(""),
                 Component.text("ABILITIES", TextColor.color(0x8FE3FF), TextDecoration.BOLD),
-                Component.text("F: Blitz", NamedTextColor.WHITE).append(Component.text("  (6s CD)", NamedTextColor.DARK_GRAY)),
-                Component.text("  Dash through time (aggressive forward lunge).", NamedTextColor.GRAY),
-                Component.text("Double-F: Blink", NamedTextColor.WHITE).append(Component.text("  (15s CD)", NamedTextColor.DARK_GRAY)),
-                Component.text("  Instant teleport toward your look direction.", NamedTextColor.GRAY),
-                Component.text("Sneak + F: Time Disturbance", NamedTextColor.WHITE).append(Component.text("  (50s CD)", NamedTextColor.DARK_GRAY)),
-                Component.text("  100 blocks: Slowness II, Weakness I, Glowing.", NamedTextColor.GRAY),
+                Component.text("F: Flash", NamedTextColor.WHITE).append(Component.text("  (15s CD)", NamedTextColor.DARK_GRAY)),
+                Component.text("  3x speed boost for 3 seconds (instant).", NamedTextColor.GRAY),
+                Component.text("F (Charge): Temporal Disturbance", NamedTextColor.WHITE).append(Component.text("  (120s CD)", NamedTextColor.DARK_GRAY)),
+                Component.text("  100 blocks: Slowness II, Glowing, Weakness I.", NamedTextColor.GRAY),
                 Component.text(""),
                 Component.text("ULTIMATE", TextColor.color(0xFFD66E), TextDecoration.BOLD),
-                Component.text("Sneak + Double-F: Hourglass's Sanctuary", NamedTextColor.WHITE).append(Component.text("  (10m CD)", NamedTextColor.DARK_GRAY)),
-                Component.text("  Global timestop for 10s. Damage capped to 6 hearts.", NamedTextColor.GRAY),
-                Component.text("  Afterward: Slowness II + Weakness II.", NamedTextColor.DARK_GRAY),
+                Component.text("Shift+F (Charge): Hourglass's Sanctuary", NamedTextColor.WHITE).append(Component.text("  (7 Kills)", NamedTextColor.DARK_GRAY)),
+                Component.text("  Global timestop for 20s. Everyone: Glowing + Weakness I.", NamedTextColor.GRAY),
                 Component.text(""),
                 Component.text("PASSIVE (WHILE HELD)", TextColor.color(0xFFD66E), TextDecoration.BOLD),
                 Component.text("Speed II, Strength I, Health Boost (20 hearts total).", NamedTextColor.GRAY),
                 Component.text(""),
                 Component.text("This item is authenticated via TimeBound UID.", NamedTextColor.DARK_GRAY)
         ));
-
-        meta.addEnchant(Enchantment.SHARPNESS, 6, true);
-        meta.addEnchant(Enchantment.UNBREAKING, 3, true);
+        meta.addEnchant(Enchantment.SHARPNESS, 5, true);
+        meta.addEnchant(Enchantment.LOOTING, 3, true);
+        meta.addEnchant(Enchantment.FIRE_ASPECT, 2, true);
+        meta.addEnchant(Enchantment.SWEEPING_EDGE, 3, true);
         meta.setUnbreakable(true);
-        // Keep glint + enchant visibility (required); hide attributes/unbreakable only.
         meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_ATTRIBUTES);
-
         meta.getPersistentDataContainer().set(new NamespacedKey(plugin, TimeBoundItems.MASTER_KEY), PersistentDataType.BYTE, (byte) 1);
         item.setItemMeta(meta);
         return item;
@@ -94,7 +87,6 @@ public final class MasterOfTimeItems {
         recipe.setIngredient('B', new RecipeChoice.MaterialChoice(List.of(Material.NETHERITE_SWORD, Material.MACE)));
         recipe.setGroup("time_weapons");
         Bukkit.addRecipe(recipe);
-
         plugin.getLogger().info("Registered Master of Time recipe");
     }
 

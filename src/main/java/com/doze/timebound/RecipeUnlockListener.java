@@ -28,22 +28,11 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
-/**
- * Duplicate restriction and recipe unlocks driven by the global UID registry + scans.
- *
- * Strict mode:
- * - Blocks crafting duplicates (weapons/clocks/master) if any exist globally.
- *
- * Test mode:
- * - Allows crafting but logs violations.
- */
 public final class RecipeUnlockListener implements Listener {
     private final Main plugin;
-
     public RecipeUnlockListener(Main plugin) {
         this.plugin = plugin;
     }
-
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         Bukkit.getScheduler().runTask(plugin, () -> {
@@ -69,9 +58,7 @@ public final class RecipeUnlockListener implements Listener {
         CraftingInventory inv = event.getInventory();
         ItemStack result = inv.getResult();
         if (result == null) return;
-
         boolean testMode = plugin.getConfig().getBoolean("testMode", false);
-
         String weaponType = TimeBladeItems.getTaggedType(result);
         if (weaponType != null) {
             if (!testMode && plugin.getGlobalRegistry().anyWeaponExists(weaponType)) {
@@ -84,7 +71,6 @@ public final class RecipeUnlockListener implements Listener {
             }
             return;
         }
-
         if (TimeBoundItems.isMasterOfTime(plugin, result)) {
             if (!isValidMasterRecipeMatrix(inv.getMatrix())) {
                 inv.setResult(null);
@@ -101,7 +87,6 @@ public final class RecipeUnlockListener implements Listener {
         ItemStack result = event.getResult();
         String type = TimeBladeItems.getTaggedType(result);
         if (type == null) return;
-
         boolean testMode = plugin.getConfig().getBoolean("testMode", false);
         if (!testMode && plugin.getGlobalRegistry().anyWeaponExists(type)) {
             event.setResult(null);
@@ -111,19 +96,15 @@ public final class RecipeUnlockListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCraftItem(CraftItemEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-
         boolean testMode = plugin.getConfig().getBoolean("testMode", false);
         ItemStack result = event.getCurrentItem();
         if (result == null) return;
-
-        // Eternity craft (Master of Time legacy key)
         if (TimeBoundItems.isMasterOfTime(plugin, result)) {
             if (!isValidMasterRecipeMatrix(event.getInventory().getMatrix())) {
                 event.setCancelled(true);
                 event.getInventory().setResult(null);
                 return;
             }
-
             if (plugin.getGlobalRegistry().anyMasterExists()) {
                 if (!testMode) {
                     event.setCancelled(true);
@@ -133,19 +114,12 @@ public final class RecipeUnlockListener implements Listener {
                 }
                 plugin.getGlobalRegistry().logDuplicateViolation(player.getName() + " crafted duplicate Eternity.");
             }
-
-            // Replace static recipe result with a fresh UID instance.
             event.setCurrentItem(MasterOfTimeItems.createCrafted(plugin));
             MasterOfTimeItems.announceCraft(plugin, player);
             plugin.getAdvancementManager().grantMasterAdvancement(player);
-
-            // Special trigger: crafting the legendary resets availability of the 4 base blades.
-            // The registry is recomputed from scans; we force an immediate scan to reflect consumption.
             Bukkit.getScheduler().runTask(plugin, () -> plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.CRAFT));
             return;
         }
-
-        // Timeblade craft
         String weaponType = TimeBladeItems.getTaggedType(result);
         if (weaponType != null) {
             if (plugin.getGlobalRegistry().anyWeaponExists(weaponType)) {
@@ -163,11 +137,9 @@ public final class RecipeUnlockListener implements Listener {
                 denyCraft(player, weaponType);
                 return;
             }
-
             ItemStack crafted = result.clone();
             TimeItemUid.ensure(plugin, crafted);
             event.setCurrentItem(crafted);
-
             announceWeaponCraft(player, weaponType);
             plugin.getAdvancementManager().grantWeaponAdvancement(player, weaponType);
             Bukkit.getScheduler().runTask(plugin, () -> {
@@ -180,9 +152,7 @@ public final class RecipeUnlockListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
-            // Skip immediate processing in creative mode to prevent desync
             if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) {
-                // Defer to next tick
                 Bukkit.getScheduler().runTaskLater(plugin, () -> unlockRecipesFromInventory(player, false), 1L);
             } else {
                 Bukkit.getScheduler().runTask(plugin, () -> unlockRecipesFromInventory(player, false));
@@ -193,9 +163,7 @@ public final class RecipeUnlockListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
-            // Skip immediate processing in creative mode to prevent desync
             if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) {
-                // Defer to next tick
                 Bukkit.getScheduler().runTaskLater(plugin, () -> unlockRecipesFromInventory(player, false), 1L);
             } else {
                 Bukkit.getScheduler().runTask(plugin, () -> unlockRecipesFromInventory(player, false));
@@ -216,17 +184,12 @@ public final class RecipeUnlockListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
-
-        // Never delete/deny pickups. The global registry is scan-based and can be stale; denying pickup causes
-        // false positives (exactly the bug you're seeing). Duplicate prevention is enforced at creation time
-        // (craft/give/spawn), not on transfer of an existing world item entity.
         ItemStack stack = event.getItem().getItemStack();
         if (TimeBoundItems.isTimeItem(plugin, stack) || TimeBoundItems.isMasterOfTime(plugin, stack)) {
             ItemStack copy = stack.clone();
             TimeItemUid.ensure(plugin, copy);
             event.getItem().setItemStack(copy);
         }
-
         Bukkit.getScheduler().runTask(plugin, () -> {
             unlockRecipesFromInventory(player, true);
             plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.PERIODIC);
@@ -235,8 +198,6 @@ public final class RecipeUnlockListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPickupMonitor(EntityPickupItemEvent event) {
-        // If some other plugin cancels the pickup, make sure we don't end up with a stale global registry
-        // that blocks crafting/pickups due to "ghost" entries.
         if (!(event.getEntity() instanceof Player)) return;
         if (!event.isCancelled()) return;
         Bukkit.getScheduler().runTask(plugin, () -> plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.PERIODIC));
@@ -244,29 +205,21 @@ public final class RecipeUnlockListener implements Listener {
 
     public void unlockRecipesFromInventory(Player player, boolean toast) {
         ensureUids(player);
-        
-        // Blade recipes unlock when the player holds the matching clock.
-        // Use unique recipe keys for each weapon/clock combination
         ItemStack[] contents = player.getInventory().getContents();
         if (contents != null) {
             for (ItemStack item : contents) {
                 ClockType type = TimeClockItems.getClockType(plugin, item);
                 if (type == null) continue;
-
                 NamespacedKey recipeKey = TimeBladeItems.recipeKey(plugin, type);
                 if (!player.hasDiscoveredRecipe(recipeKey)) {
                     player.discoverRecipe(recipeKey);
                     if (toast) {
-                        // Show recipe unlock toast with sound
                         player.getWorld().playSound(player.getLocation(), Sound.UI_TOAST_IN, 0.7f, 1.0f);
-                        // Force recipe book update
                         player.updateInventory();
                     }
                 }
             }
         }
-
-        // Master recipe unlock when the player has all four blades at least once.
         EnumSet<ClockType> blades = EnumSet.noneOf(ClockType.class);
         if (contents != null) {
             for (ItemStack item : contents) {
@@ -320,12 +273,10 @@ public final class RecipeUnlockListener implements Listener {
     }
 
     public boolean canClaimClock(Player player, ClockType type) {
-        // Bugfix requirement: clock obtain restriction is per-player per-type (not global).
         return !playerHasClock(player, type);
     }
 
     public void recordClockClaim(Player player, ClockType type) {
-        // Registry is driven by scans; claiming a clock changes inventories, so rescan soon.
         unlockRecipesFromInventory(player, true);
         plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.PERIODIC);
     }
@@ -345,11 +296,11 @@ public final class RecipeUnlockListener implements Listener {
     private boolean isValidMasterRecipeMatrix(ItemStack[] matrix) {
         if (matrix == null || matrix.length < 9) return false;
 
-        // Expected shape:
+        // expected shape:
         // 0 1 2
         // 3 4 5
         // 6 7 8
-        // Blades at 1,3,5,7 and Nether Star at 4.
+        // blades at 1,3,5,7 and nether star at 4.
         if (matrix[4] == null || matrix[4].getType() != org.bukkit.Material.NETHER_STAR) return false;
 
         int[] bladeSlots = {1, 3, 5, 7};
@@ -362,8 +313,6 @@ public final class RecipeUnlockListener implements Listener {
             if (!TimeItemUid.has(plugin, s)) return false;
             seen.add(wt);
         }
-
-        // Ensure uniqueness + must include all 4.
         return seen.size() == 4
                 && seen.contains("freeze")
                 && seen.contains("brake")

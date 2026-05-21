@@ -20,38 +20,29 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public class TimeBoundCommand implements CommandExecutor, TabCompleter {
     public TimeBoundCommand(TimeClockListener ignoredClockListener) {
     }
-
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!cmd.getName().equalsIgnoreCase("timebound")) {
             return true;
         }
-
         if (args.length == 0) {
             sendUsage(sender);
             return true;
         }
-
         String sub = args[0].toLowerCase();
-
         if (sub.equals("help")) {
             sendUsage(sender);
             return true;
         }
-
-
-
         if (!(sender instanceof Player p)) {
             sendColored(sender, NamedTextColor.RED, "Players only for this subcommand.");
             return true;
         }
-
         if (sub.equals("give")) {
             if (!isAdmin(p)) {
                 sendColored(p, NamedTextColor.RED, "You do not have permission to use this command.");
                 return true;
             }
-
             if (args.length < 3) {
                 sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give weapon <player> <freeze|brake|reverse|skip|master>");
                 sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give clock <player> <freeze|brake|reverse|skip>");
@@ -59,7 +50,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 sendColored(p, NamedTextColor.YELLOW, "Usage: /timebound give clocks <freeze|brake|reverse|skip>");
                 return true;
             }
-
             String type = args[1].toLowerCase(Locale.ROOT);
             boolean isWeapon = type.equals("weapon") || type.equals("weapons");
             boolean isClock = type.equals("clock") || type.equals("clocks");
@@ -67,9 +57,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 sendColored(p, NamedTextColor.RED, "Use 'weapon(s)' or 'clock(s)'.");
                 return true;
             }
-
-            // New admin syntax: /timebound give weapon <player> <weapon>
-            // Back-compat: /timebound give weapons <weapon> (gives to self)
             Player target = p;
             String itemArg;
             if (args.length >= 4) {
@@ -107,12 +94,10 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
                 sendColored(p, NamedTextColor.RED, "Usage: /timebound test <on|off>");
                 return true;
             }
-
             Main main = Main.getInstance();
             if (main == null) return true;
             main.getConfig().set("testMode", enable);
             main.saveConfig();
-
             Component msg = Component.text("TimeBound Test Mode is now ", NamedTextColor.YELLOW)
                     .append(Component.text(enable ? "ON" : "OFF", enable ? NamedTextColor.GREEN : NamedTextColor.RED));
             Bukkit.broadcast(msg);
@@ -204,7 +189,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             sendColored(p, NamedTextColor.GREEN, "Cleared Time Skip stacks for " + target.getName() + ".");
             return true;
         }
-
         sendUsage(p);
         return true;
     }
@@ -212,7 +196,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
     private void giveWeapon(Player player, String type, boolean adminBypassAllowed) {
         Main main = Main.getInstance();
         if (main == null) return;
-
         boolean isMaster = type.equalsIgnoreCase("master") || type.equalsIgnoreCase("masteroftime") || type.equalsIgnoreCase("master_of_time");
         if (isMaster) {
             boolean testMode = main.getConfig().getBoolean("testMode", false);
@@ -229,13 +212,11 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             main.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.ADMIN);
             return;
         }
-
         ClockType clockType = ClockType.fromKey(type);
         if (clockType == null) {
             sendColored(player, NamedTextColor.RED, "Unknown type. Use freeze, brake, reverse, skip, or master.");
             return;
         }
-
         boolean testMode = main.getConfig().getBoolean("testMode", false);
         if (main.getGlobalRegistry().anyWeaponExists(clockType.key())) {
             if (!testMode && !adminBypassAllowed) {
@@ -265,8 +246,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
         }
         Main main = Main.getInstance();
         if (main == null) return;
-
-        // Bugfix requirement: only prevent duplicates of the same clock type in the same player's inventory.
         if (playerHasClock(player, clockType)) {
             sendColored(player, NamedTextColor.RED, "You already have a " + clockType.displayName() + ".");
             return;
@@ -316,7 +295,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
         boolean admin = isAdmin(sender);
         String last = args.length == 0 ? "" : args[args.length - 1].toLowerCase(Locale.ROOT);
         List<String> out = new ArrayList<>();
-
         if (args.length == 1) {
             out.add("help");
             if (admin) {
@@ -328,7 +306,6 @@ public class TimeBoundCommand implements CommandExecutor, TabCompleter {
             }
             return filter(out, last);
         }
-
         if (args.length == 2) {
             String sub = args[0].toLowerCase(Locale.ROOT);
             if (sub.equals("spawnclock")) {

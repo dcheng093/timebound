@@ -27,23 +27,14 @@ import org.bukkit.util.Vector;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
-/**
- * Lightweight entity-side protections:
- * - Prevents vanilla despawn for TimeBound items by applying unlimited lifetime on spawn/load.
- * - Void rescue (Y <= -64): teleports the item to safety or returns it to its last known owner.
- * - Cancels merge to avoid stack/merge glitches that can drop metadata.
- */
 public final class TimeItemEntityGuardian implements Listener {
     private static final double VOID_Y = -64.0;
     public static final String OWNER_KEY = "timebound_owner";
-
     private final Main plugin;
     private final Set<UUID> tracked = ConcurrentHashMap.newKeySet();
     private final Set<UUID> announcedVoid = ConcurrentHashMap.newKeySet();
-
     public TimeItemEntityGuardian(Main plugin) {
         this.plugin = plugin;
-
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -56,7 +47,6 @@ public final class TimeItemEntityGuardian implements Listener {
     public void onDrop(PlayerDropItemEvent event) {
         Item item = event.getItemDrop();
         protect(item);
-        // Track last known owner for void rescue / recovery routing.
         try {
             item.getPersistentDataContainer().set(plugin.key(OWNER_KEY), PersistentDataType.STRING, event.getPlayer().getUniqueId().toString());
         } catch (Throwable ignored) {
@@ -99,7 +89,6 @@ public final class TimeItemEntityGuardian implements Listener {
         Item a = event.getEntity();
         Item b = event.getTarget();
         if (TimeBoundItems.isTimeItem(plugin, a.getItemStack()) || TimeBoundItems.isTimeItem(plugin, b.getItemStack())) {
-            // Prevent merge; merged stacks can lose/duplicate metadata in some edge cases.
             event.setCancelled(true);
         }
     }
@@ -107,42 +96,34 @@ public final class TimeItemEntityGuardian implements Listener {
     private void protect(Item item) {
         ItemStack stack = item.getItemStack();
         if (!TimeBoundItems.isTimeItem(plugin, stack)) return;
-
-        // Ensure UID exists for tracking + anti-rename spoofing.
         if (!TimeItemUid.has(plugin, stack)) {
             ItemStack copy = stack.clone();
             TimeItemUid.ensure(plugin, copy);
             item.setItemStack(copy);
         }
-
-        // Never despawn naturally.
         try {
             item.setUnlimitedLifetime(true);
         } catch (Throwable ignored) {
-            // Paper-only API; if unavailable, we still have void cleanup and registry scans.
         }
-
         try {
             item.setInvulnerable(true);
         } catch (Throwable ignored) {
         }
-
         tracked.add(item.getUniqueId());
     }
 
     private void tickVoidCleanup() {
         if (tracked.isEmpty()) return;
-
-        for (UUID id : tracked.toArray(new UUID[0])) {
+        Object[] ids = tracked.toArray();
+        for (Object o : ids) {
+            UUID id = (UUID) o;
             Entity e = Bukkit.getEntity(id);
             if (!(e instanceof Item item) || !item.isValid()) {
                 tracked.remove(id);
                 announcedVoid.remove(id);
                 continue;
             }
-
             if (item.getLocation().getY() > VOID_Y) continue;
-
             if (announcedVoid.add(id)) {
                 String name = TimeBoundItems.displayName(plugin, item.getItemStack());
                 Component msg = Component.text(name, NamedTextColor.GOLD)
@@ -151,22 +132,19 @@ public final class TimeItemEntityGuardian implements Listener {
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     p.playSound(p.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 0.5f, 1.4f);
                 }
-                plugin.getLogger().info(name + " void rescue triggered.");
+                plugin.getLogger().info(String.format("%s void rescue triggered.", name));
             }
-
             rescueFromVoid(item);
         }
     }
 
     private void rescueFromVoid(Item item) {
-        // 1) Prefer returning to owner if known and online.
         UUID owner = null;
         try {
             String raw = item.getPersistentDataContainer().get(plugin.key(OWNER_KEY), PersistentDataType.STRING);
             if (raw != null) owner = UUID.fromString(raw);
         } catch (Throwable ignored) {
         }
-
         if (owner != null) {
             Player p = Bukkit.getPlayer(owner);
             if (p != null && p.isOnline()) {
@@ -176,8 +154,6 @@ public final class TimeItemEntityGuardian implements Listener {
                 return;
             }
         }
-
-        // 2) Otherwise, teleport to world spawn.
         var w = item.getWorld();
         var spawn = w.getSpawnLocation().clone().add(0, 1.0, 0);
         item.teleport(spawn);

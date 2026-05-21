@@ -16,23 +16,18 @@ import org.bukkit.persistence.PersistentDataType;
 
 @SuppressWarnings("deprecation")
 public final class TimeBladeItems {
-
     public static final String TIME_WEAPON_KEY = "time_weapon";
-
     private TimeBladeItems() {
     }
-
     public static ItemStack createStar(String type) {
         BladeType bladeType = BladeType.from(type);
         if (bladeType == null) return null;
-
         return namedItem(Material.NETHER_STAR, bladeType.starName);
     }
 
     public static ItemStack createBlade(String type) {
         BladeType bladeType = BladeType.from(type);
         if (bladeType == null) return null;
-
         ItemStack item = namedItem(bladeType.bladeMaterial, bladeType.bladeName);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
@@ -54,7 +49,6 @@ public final class TimeBladeItems {
                     PersistentDataType.STRING,
                     bladeType.commandName
             );
-
             int customModelData = switch (bladeType) {
                 case FREEZE -> 1;
                 case SKIP -> 2;
@@ -65,7 +59,6 @@ public final class TimeBladeItems {
 
             item.setItemMeta(meta);
         }
-
         return item;
     }
 
@@ -101,9 +94,7 @@ public final class TimeBladeItems {
     private static void registerFreezeBladeRecipe(Main plugin) {
         NamespacedKey key = recipeKey(plugin, ClockType.FREEZE);
         Bukkit.removeRecipe(key);
-        
         ShapedRecipe recipe = new ShapedRecipe(key, createBlade("freeze"));
-        
         recipe.shape(
             "BNB",
             "NCN",
@@ -113,7 +104,6 @@ public final class TimeBladeItems {
         recipe.setIngredient('N', Material.SNOWBALL);
         recipe.setIngredient('C', Material.CLOCK);
         recipe.setGroup("time_weapons");
-        
         Bukkit.addRecipe(recipe);
         plugin.getLogger().info("Registered Freeze Time Blade recipe");
     }
@@ -121,9 +111,7 @@ public final class TimeBladeItems {
     private static void registerBrakeBladeRecipe(Main plugin) {
         NamespacedKey key = recipeKey(plugin, ClockType.BRAKE);
         Bukkit.removeRecipe(key);
-        
         ShapedRecipe recipe = new ShapedRecipe(key, createBlade("brake"));
-        
         recipe.shape(
             "IRI",
             "RCR",
@@ -142,9 +130,7 @@ public final class TimeBladeItems {
     private static void registerSkipBladeRecipe(Main plugin) {
         NamespacedKey key = recipeKey(plugin, ClockType.SKIP);
         Bukkit.removeRecipe(key);
-        
         ShapedRecipe recipe = new ShapedRecipe(key, createBlade("skip"));
-        
         recipe.shape(
             "GFG",
             "FCF",
@@ -154,7 +140,6 @@ public final class TimeBladeItems {
         recipe.setIngredient('F', Material.FEATHER);
         recipe.setIngredient('C', Material.CLOCK);
         recipe.setGroup("time_weapons");
-        
         Bukkit.addRecipe(recipe);
         plugin.getLogger().info("Registered Time Skip Blade recipe");
     }
@@ -162,9 +147,7 @@ public final class TimeBladeItems {
     private static void registerReverseBladeRecipe(Main plugin) {
         NamespacedKey key = recipeKey(plugin, ClockType.REVERSE);
         Bukkit.removeRecipe(key);
-        
         ShapedRecipe recipe = new ShapedRecipe(key, createBlade("reverse"));
-        
         recipe.shape(
             "AEA",
             "ECE",
@@ -316,13 +299,11 @@ public final class TimeBladeItems {
                         ChatColor.WHITE + "Critical hits: 3-5% chance to rewind your health 5 seconds."
                 )
         );
-
         private final String commandName;
         private final String starName;
         private final String bladeName;
         private final Material bladeMaterial;
         private final List<String> lore;
-
         BladeType(String commandName, String starName, String bladeName, Material bladeMaterial, String recipeKey, List<String> lore) {
             this.commandName = commandName;
             this.starName = starName;
@@ -333,14 +314,12 @@ public final class TimeBladeItems {
 
         public static BladeType from(String type) {
             if (type == null) return null;
-
             String normalized = type.toLowerCase(Locale.ROOT);
             for (BladeType bladeType : values()) {
                 if (bladeType.commandName.equals(normalized)) {
                     return bladeType;
                 }
             }
-
             return null;
         }
     }

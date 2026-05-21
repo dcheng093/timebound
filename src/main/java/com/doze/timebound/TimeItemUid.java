@@ -39,20 +39,15 @@ public final class TimeItemUid {
         if (stack == null || stack.getType().isAir()) return stack;
         ItemMeta meta = stack.getItemMeta();
         if (meta == null) return stack;
-
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         NamespacedKey key = key(plugin);
         String existing = pdc.get(key, PersistentDataType.STRING);
         if (existing != null && !existing.isBlank()) return stack;
-
         pdc.set(key, PersistentDataType.STRING, UUID.randomUUID().toString());
         stack.setItemMeta(meta);
         return stack;
     }
 
-    /**
-     * Forces a new UID. Used for creative-mode inventory operations where the client can duplicate NBT.
-     */
     public static ItemStack regenerate(Main plugin, ItemStack stack) {
         if (stack == null || stack.getType().isAir()) return stack;
         ItemMeta meta = stack.getItemMeta();

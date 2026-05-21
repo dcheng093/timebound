@@ -17,13 +17,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
@@ -32,33 +34,17 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
-/**
- * Activation system (sequence-friendly, low conflict):
- * - Blitz: swap hands (F) while holding Eternity in main-hand
- * - Blink: double swap-hands (double-F) while holding Master of Time in main-hand
- * - Time Disturbance: sneak + F
- * - Ultimate: sneak + double-F
- *
- * Cooldowns persist via Player PersistentDataContainer (saved in playerdata).
- */
 public final class MasterOfTimeListener implements Listener {
-    private static final long BLITZ_CD = 6_000L;
-    private static final long BLINK_CD = 15_000L;
-    private static final long DISTURB_CD = 50_000L;
-    private static final long ULT_CD = 600_000L; // 10m
-
-    private static final int ULT_DURATION_TICKS = 200; // 10s
-
+    private static final long FLASH_CD = 15_000L;
+    private static final long DISTURB_CD = 120_000L;
+    private static final int KILLS_FOR_ULT = 7;
+    private static final int ULT_DURATION_TICKS = 400; // 20s
+    private static final int DISTURB_RADIUS = 100;
     private final Main plugin;
-
-    private final Map<UUID, Long> lastSwapToggle = new HashMap<>();
-
     private final Map<UUID, BossBar> bars = new HashMap<>();
-
+    private final Map<UUID, Integer> killCounter = new HashMap<>();
     public MasterOfTimeListener(Main plugin) {
         this.plugin = plugin;
-
-        // Smooth bossbar updates while any cooldown is active.
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -67,8 +53,6 @@ public final class MasterOfTimeListener implements Listener {
                 }
             }
         }.runTaskTimer(plugin, 10L, 10L);
-
-        // Passive upkeep loop: keep short-duration buffs applied while held.
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -88,17 +72,19 @@ public final class MasterOfTimeListener implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (isHoldingMaster(e.getPlayer())) applyPassives(e.getPlayer());
             updateBossbar(e.getPlayer());
+            killCounter.put(e.getPlayer().getUniqueId(), 0);
         });
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent e) {
+        UUID id = e.getPlayer().getUniqueId();
         removePassives(e.getPlayer());
-        BossBar bar = bars.remove(e.getPlayer().getUniqueId());
+        BossBar bar = bars.remove(id);
         if (bar != null) {
             bar.removeAll();
         }
-        lastSwapToggle.remove(e.getPlayer().getUniqueId());
+        killCounter.remove(id);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -106,9 +92,14 @@ public final class MasterOfTimeListener implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> updateBossbar(e.getPlayer()));
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onSwapHands(PlayerSwapHandItemsEvent e) {
-        // Disabled - now handled by KeybindManager via KeybindListener
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerDeath(PlayerDeathEvent e) {
+        if (e.getEntity().getKiller() instanceof Player killer) {
+            UUID id = killer.getUniqueId();
+            if (isHoldingMaster(killer)) {
+                killCounter.put(id, killCounter.getOrDefault(id, 0) + 1);
+            }
+        }
     }
 
     private boolean isHoldingMaster(Player p) {
@@ -118,16 +109,15 @@ public final class MasterOfTimeListener implements Listener {
     }
 
     private void applyPassives(Player p) {
-        p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED, 60, 1, false, false, true)); // Speed II
-        p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.STRENGTH, 60, 0, false, false, true)); // Strength I
-        // Health Boost V => +20 health (20 hearts total = 40 HP).
-        p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.HEALTH_BOOST, 60, 4, false, false, true));
+        p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 60, 1, false, false, true));
+        p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 60, 0, false, false, true));
+        p.addPotionEffect(new PotionEffect(PotionEffectType.HEALTH_BOOST, 60, 4, false, false, true));
     }
 
     private void removePassives(Player p) {
-        p.removePotionEffect(org.bukkit.potion.PotionEffectType.SPEED);
-        p.removePotionEffect(org.bukkit.potion.PotionEffectType.STRENGTH);
-        p.removePotionEffect(org.bukkit.potion.PotionEffectType.HEALTH_BOOST);
+        p.removePotionEffect(PotionEffectType.SPEED);
+        p.removePotionEffect(PotionEffectType.STRENGTH);
+        p.removePotionEffect(PotionEffectType.HEALTH_BOOST);
     }
 
     private NamespacedKey cdKey(String id) {
@@ -153,22 +143,48 @@ public final class MasterOfTimeListener implements Listener {
         return true;
     }
 
-    private void blitz(Player p) {
-        Location loc = p.getLocation();
-        Vector v = loc.getDirection().normalize().multiply(1.55).setY(Math.max(0.08, Math.min(0.35, loc.getDirection().getY() * 0.18)));
-        p.setVelocity(v);
-        p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED, 45, 2, false, true, true));
-        p.getWorld().playSound(p.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.6f, 1.25f);
-        p.getWorld().spawnParticle(Particle.CLOUD, p.getLocation().add(0, 1.0, 0), 22, 0.28, 0.28, 0.28, 0.02);
-        p.getWorld().spawnParticle(Particle.END_ROD, p.getLocation().add(0, 1.0, 0), 12, 0.25, 0.35, 0.25, 0.01);
+    private void flash(Player p) {
+        p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 60, 3, false, true, true));
+        p.playSound(p.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 1.5f);
+        p.getWorld().spawnParticle(Particle.END_ROD, p.getEyeLocation(), 15, 0.3, 0.3, 0.3, 0.1);
+    }
+
+    private void temporalDisturbance(Player p) {
+        Location center = p.getLocation();
+        p.getWorld().playSound(center, Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.0f, 0.8f);
+        for (LivingEntity entity : p.getWorld().getNearbyLivingEntities(center, DISTURB_RADIUS)) {
+            if (entity.equals(p) || (entity instanceof Player other && TrustManager.isTrusted(p, other))) {
+                continue;
+            }
+            
+            entity.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 1, false, true, true));
+            entity.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 100, 0, false, true, true));
+            entity.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 100, 0, false, true, true));
+        }
+        p.getWorld().spawnParticle(Particle.SONIC_BOOM, center, 1);
+        for (int i = 0; i < 360; i += 15) {
+            double angle = Math.toRadians(i);
+            double x = Math.cos(angle) * DISTURB_RADIUS;
+            double z = Math.sin(angle) * DISTURB_RADIUS;
+            p.getWorld().spawnParticle(Particle.SMALL_FLAME, 
+                    center.clone().add(x, 1.0, z), 3, 0.1, 0.1, 0.1, 0.05);
+        }
+        
+        p.sendActionBar(Component.text("Temporal Disturbance - 100 blocks affected!", NamedTextColor.GOLD));
     }
 
     private void ultimate(Player p) {
+        UUID id = p.getUniqueId();
+        int kills = killCounter.getOrDefault(id, 0);
+        if (kills < KILLS_FOR_ULT) {
+            p.sendActionBar(Component.text("Need " + (KILLS_FOR_ULT - kills) + " more kills for ultimate!", NamedTextColor.RED));
+            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.6f, 0.7f);
+            return;
+        }
+        killCounter.put(id, 0);
         Component title = Component.text("HOURGLASS'S SANCTUARY", TextColor.color(0xFFD66E), TextDecoration.BOLD);
         p.showTitle(net.kyori.adventure.title.Title.title(title, Component.text(""), net.kyori.adventure.title.Title.Times.times(
                 java.time.Duration.ofMillis(150), java.time.Duration.ofMillis(900), java.time.Duration.ofMillis(250))));
-
-        // Global timestop for exactly 10 seconds, coordinated per-world.
         var worlds = Bukkit.getWorlds();
         java.util.List<org.bukkit.World> started = new java.util.ArrayList<>();
         for (var w : worlds) {
@@ -182,6 +198,8 @@ public final class MasterOfTimeListener implements Listener {
                             if (e instanceof Player other && TrustManager.isTrusted(p, other)) continue;
                             TimeFreezeManager.freeze(e);
                             e.setVelocity(new Vector(0, Math.min(e.getVelocity().getY(), 0.1), 0));
+                            e.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, ULT_DURATION_TICKS, 0, false, true, true));
+                            e.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, ULT_DURATION_TICKS, 0, false, true, true));
                         }
                         w.spawnParticle(Particle.END_ROD, p.getLocation().add(0, 1.0, 0), 6, 1.4, 0.5, 1.4, 0.01);
                     },
@@ -196,7 +214,6 @@ public final class MasterOfTimeListener implements Listener {
                     }
             );
             if (!ok) {
-                // Roll back worlds we already started to avoid partial-global domain.
                 for (var sw : started) {
                     plugin.getWorldUltimateManager().end(sw, () -> {});
                 }
@@ -204,38 +221,19 @@ public final class MasterOfTimeListener implements Listener {
             }
             started.add(w);
         }
-
         plugin.getWorldUltimateManager().broadcastUltimate(p, "Eternity bends all timelines to its will!", TextColor.color(0xFFD66E));
-
-        // Post-domain debuffs.
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (!p.isOnline()) return;
-            p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, 200, 1, false, true, true));
-            p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.WEAKNESS, 200, 1, false, true, true));
-        }, ULT_DURATION_TICKS);
     }
-
-
 
     private void updateBossbar(Player p) {
         UUID id = p.getUniqueId();
         boolean holding = isHoldingMaster(p);
-
-        long dash = cooldownLeftMillis(p, "mot_blitz");
-        long blink = cooldownLeftMillis(p, "mot_blink");
-        long distort = cooldownLeftMillis(p, "mot_disturb");
-        long ult = cooldownLeftMillis(p, "mot_ult");
-
+        long flash = cooldownLeftMillis(p, "mot_flash");
+        long disturb = cooldownLeftMillis(p, "mot_disturb");
         long max = 0L;
         String label = null;
         long left = 0L;
-
-        // Prefer showing ultimate > distortion > blink > dash
-        if (ult > 0) { label = "Hourglass's Sanctuary"; left = ult; max = ULT_CD; }
-        else if (distort > 0) { label = "Time Disturbance"; left = distort; max = DISTURB_CD; }
-        else if (blink > 0) { label = "Blink"; left = blink; max = BLINK_CD; }
-        else if (dash > 0) { label = "Blitz"; left = dash; max = BLITZ_CD; }
-
+        if (disturb > 0) { label = "Temporal Disturbance"; left = disturb; max = DISTURB_CD; }
+        else if (flash > 0) { label = "Flash"; left = flash; max = FLASH_CD; }
         BossBar bar = bars.get(id);
         if (!holding || label == null) {
             if (bar != null) {
@@ -247,35 +245,30 @@ public final class MasterOfTimeListener implements Listener {
             }
             return;
         }
-
         if (bar == null) {
             bar = Bukkit.createBossBar("", BarColor.PURPLE, BarStyle.SOLID);
             bars.put(id, bar);
         }
-
         if (!bar.getPlayers().contains(p)) bar.addPlayer(p);
         bar.setVisible(true);
-
         double progress = Math.max(0.0, Math.min(1.0, 1.0 - (left / (double) max)));
         bar.setProgress(progress);
-        bar.setTitle("Eternity: " + label + "  " + Math.max(0, (left + 999) / 1000) + "s");
+        int kills = killCounter.getOrDefault(id, 0);
+        String ultStatus = kills >= KILLS_FOR_ULT ? " [ULT READY]" : " (Kills: " + kills + "/" + KILLS_FOR_ULT + ")";
+        bar.setTitle("Eternity: " + label + "  " + Math.max(0, (left + 999) / 1000) + "s" + ultStatus);
     }
 
-    // ============ Public API for KeybindManager ============
-
-    /**
-     * Public method for F (regular ability) - uses Blitz for now
-     */
     public void activateMasterAbility(Player p) {
-        if (!tryStartCooldown(p, "mot_blitz", BLITZ_CD)) return;
-        blitz(p);
+        if (!tryStartCooldown(p, "mot_flash", FLASH_CD)) return;
+        flash(p);
     }
 
-    /**
-     * Public method for Shift+F (ultimate)
-     */
+    public void activateMasterCharge(Player p) {
+        if (!tryStartCooldown(p, "mot_disturb", DISTURB_CD)) return;
+        temporalDisturbance(p);
+    }
+
     public void activateMasterUltimate(Player p) {
-        if (!tryStartCooldown(p, "mot_ult", ULT_CD)) return;
         ultimate(p);
     }
 }

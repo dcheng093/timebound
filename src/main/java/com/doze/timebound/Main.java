@@ -27,14 +27,10 @@ public class Main extends JavaPlugin {
         timeManager = new TimeManager(this);
         TimeBladeItems.registerRecipes(this);
         MasterOfTimeItems.registerRecipe(this);
-
         globalRegistry = new GlobalTimeItemRegistry(this);
         globalScanner = new GlobalTimeItemScanner(this, globalRegistry);
         worldUltimateManager = new WorldUltimateManager(this);
-
-        // Initialize new unified keybind system
         keybindManager = new KeybindManager(this);
-
         listener = new TimeBoundListener(this);
         getServer().getPluginManager().registerEvents(listener, this);
         clockListener = new TimeClockListener(this);
@@ -45,10 +41,7 @@ public class Main extends JavaPlugin {
         getServer().getPluginManager().registerEvents(recipeUnlockListener, this);
         masterListener = new MasterOfTimeListener(this);
         getServer().getPluginManager().registerEvents(masterListener, this);
-        
-        // Register unified keybind listener
         getServer().getPluginManager().registerEvents(new KeybindListener(this, keybindManager), this);
-
         var timeboundCommand = getCommand("timebound");
         if (timeboundCommand != null) {
             TimeBoundCommand command = new TimeBoundCommand(clockListener);
@@ -58,7 +51,6 @@ public class Main extends JavaPlugin {
         } else {
             getLogger().warning("timebound command missing in plugin.yml");
         }
-
         var trustCommand = getCommand("trust");
         if (trustCommand != null) {
             TrustManager trustManager = new TrustManager();
@@ -71,12 +63,8 @@ public class Main extends JavaPlugin {
                 untrustCommand.setTabCompleter(trustManager);
             }
         }
-
-        // Managers own their own scheduling. Avoid "scan every entity in every world every tick" loops.
         TimeFreezeManager.start(this);
         timeManager.start(this);
-
-        // Global registry scanning: startup + periodic.
         globalScanner.requestScan(GlobalTimeItemScanner.Reason.STARTUP);
         long minutes = Math.max(1, getConfig().getLong("globalScanMinutes", 3));
         long ticks = minutes * 60L * 20L;

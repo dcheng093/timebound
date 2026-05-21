@@ -16,19 +16,6 @@ import org.bukkit.scheduler.BukkitRunnable;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
-/**
- * Unified keybind system using only F and Shift+F.
- * 
- * Keybind mapping:
- * - F: Activate regular ability (with charge mechanic where applicable)
- * - Shift+F: Activate ultimate (with charge mechanic where applicable)
- * 
- * Charge mechanics:
- * - Player holds F or Shift+F
- * - Charge bar fills up
- * - When fully charged, ability activates automatically
- * - If player releases early, charge is cancelled
- */
 public class KeybindManager {
     private final Main plugin;
     private final Map<UUID, Charging> charging = new HashMap<>();
@@ -37,14 +24,14 @@ public class KeybindManager {
     private record Charging(Weapon weapon, boolean ultimate, long startTime, long chargeDurationMs) {}
     
     public enum Weapon {
-        // Time Blades
+        // time blades
         FREEZE("Lunar Dial", true, true, 1000), // ability charged, ult charged
         BRAKE("Chrono Lock", true, true, 1000),
         SKIP("Flashstep", false, true, 1500), // ability NOT charged (dash), ult charged
         REVERSE("Requiem", true, true, 1000),
-        // Master of Time
-        MASTER("Master of Time", true, true, 1200),
-        // Time Clocks
+        // master of time
+        MASTER("Master of Time", false, true, 1200), // ability instant but can charge, ult charged
+        // time clocks
         TIME_CLOCK("Time Clock", true, false, 800); // ability charged, no ult
         
         private final String displayName;
@@ -63,31 +50,22 @@ public class KeybindManager {
     public KeybindManager(Main plugin) {
         this.plugin = plugin;
     }
-    
-    /**
-     * Called when F or Shift+F is pressed.
-     */
+
     public void onKeyPress(Player player, boolean isUltimate) {
         UUID id = player.getUniqueId();
         
-        // Prevent rapid successive presses
         if (charging.containsKey(id)) {
             return;
         }
-        
         Weapon weapon = getCurrentWeapon(player);
         if (weapon == null) {
             sendError(player, "No weapon equipped!");
             return;
         }
-        
         boolean shouldCharge = isUltimate ? weapon.ultCharged : weapon.abilityCharged;
-        
         if (!shouldCharge) {
-            // Instant activation (no charge)
             activateAbility(player, weapon, isUltimate);
         } else {
-            // Start charge sequence
             startCharge(player, weapon, isUltimate);
         }
     }
@@ -97,17 +75,12 @@ public class KeybindManager {
         Charging c = charging.get(id);
         
         if (c == null) {
-            return; // Not charging
+            return;
         }
-        
         long chargeTime = System.currentTimeMillis() - c.startTime;
-        
-        // If fully charged, it already activated
         if (chargeTime >= c.chargeDurationMs) {
             return;
         }
-        
-        // Release before fully charged = cancel
         cancelCharge(player);
         sendError(player, "Charge cancelled - held too short!");
     }
@@ -121,8 +94,6 @@ public class KeybindManager {
         showChargeBar(player, weapon, ultimate, 0.0);
         
         playAt(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 0.5f, 1.0f);
-        
-        // Charge progress loop
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -146,7 +117,6 @@ public class KeybindManager {
                 
                 if (elapsed >= duration) {
                     cancel();
-                    // Auto-activate when fully charged
                     finishCharge(player, weapon, ultimate);
                 }
             }
@@ -161,11 +131,7 @@ public class KeybindManager {
         if (bar != null) {
             bar.removeAll();
         }
-        
-        // Play charge complete sound
         playAt(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.8f, 1.5f);
-        
-        // Activate the ability
         activateAbility(player, weapon, ultimate);
     }
     
@@ -197,17 +163,12 @@ public class KeybindManager {
     }
     
     private Weapon getCurrentWeapon(Player player) {
-        // Check for Time Clock in offhand
         if (TimeBoundItems.getClockType(plugin, player.getInventory().getItemInOffHand()) != null) {
             return Weapon.TIME_CLOCK;
         }
-        
-        // Check for weapons in main hand
         if (TimeBoundItems.isMasterOfTime(plugin, player.getInventory().getItemInMainHand())) {
             return Weapon.MASTER;
         }
-        
-        // Check for Time Blades
         String bladeType = TimeBoundItems.getWeaponType(player.getInventory().getItemInMainHand());
         if (bladeType != null) {
             return switch (bladeType.toLowerCase()) {
@@ -218,7 +179,6 @@ public class KeybindManager {
                 default -> null;
             };
         }
-        
         return null;
     }
     
@@ -244,10 +204,8 @@ public class KeybindManager {
         
         bar.setVisible(true);
         bar.setProgress(Math.max(0.0, Math.min(1.0, progress)));
-        
         String action = ultimate ? "Ultimate" : "Ability";
         bar.setTitle("Charging " + action + ": " + weapon.displayName);
-        
         int pct = (int) Math.round(progress * 100.0);
         player.sendActionBar(Component.text(
             "Charging " + action + "... " + pct + "%",

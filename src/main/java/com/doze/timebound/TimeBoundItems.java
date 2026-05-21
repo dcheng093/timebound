@@ -7,7 +7,6 @@ import org.bukkit.persistence.PersistentDataType;
 
 public final class TimeBoundItems {
     public static final String MASTER_KEY = "master_of_time";
-
     private TimeBoundItems() {
     }
 
@@ -27,7 +26,6 @@ public final class TimeBoundItems {
         if (isMasterOfTime(plugin, item)) {
             return "Eternity";
         }
-
         String weaponType = getWeaponType(item);
         if (weaponType != null) {
             return switch (weaponType) {
@@ -38,12 +36,10 @@ public final class TimeBoundItems {
                 default -> "Time Weapon";
             };
         }
-
         ClockType clockType = getClockType(plugin, item);
         if (clockType != null) {
             return clockType.displayName();
         }
-
         return "TimeBound item";
     }
 

@@ -26,11 +26,7 @@ public final class GlobalTimeItemRegistry {
     }
 
     private final Main plugin;
-
-    // Snapshot of the last completed scan.
     private final AtomicReference<Map<UUID, Record>> byUid = new AtomicReference<>(Map.of());
-
-    // Quick derived counts (computed at publish time).
     private final AtomicReference<Map<String, Integer>> weaponCounts = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<ClockType, Integer>> clockCounts = new AtomicReference<>(Map.of());
     private final AtomicReference<Integer> masterCount = new AtomicReference<>(0);
