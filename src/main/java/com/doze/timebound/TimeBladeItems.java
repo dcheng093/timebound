@@ -103,7 +103,6 @@ public final class TimeBladeItems {
         recipe.setIngredient('B', Material.BLUE_ICE);
         recipe.setIngredient('N', Material.SNOWBALL);
         recipe.setIngredient('C', Material.CLOCK);
-        recipe.setGroup("time_weapons");
         Bukkit.addRecipe(recipe);
         plugin.getLogger().info("Registered Freeze Time Blade recipe");
     }
@@ -121,8 +120,6 @@ public final class TimeBladeItems {
         recipe.setIngredient('R', Material.REDSTONE_BLOCK);
         recipe.setIngredient('A', Material.ANVIL);
         recipe.setIngredient('C', Material.CLOCK);
-        recipe.setGroup("time_weapons");
-        
         Bukkit.addRecipe(recipe);
         plugin.getLogger().info("Registered Time Brake Mace recipe");
     }
@@ -139,7 +136,6 @@ public final class TimeBladeItems {
         recipe.setIngredient('G', Material.GOLD_BLOCK);
         recipe.setIngredient('F', Material.FEATHER);
         recipe.setIngredient('C', Material.CLOCK);
-        recipe.setGroup("time_weapons");
         Bukkit.addRecipe(recipe);
         plugin.getLogger().info("Registered Time Skip Blade recipe");
     }
@@ -156,8 +152,6 @@ public final class TimeBladeItems {
         recipe.setIngredient('A', Material.AMETHYST_BLOCK);
         recipe.setIngredient('E', Material.END_ROD);
         recipe.setIngredient('C', Material.CLOCK);
-        recipe.setGroup("time_weapons");
-        
         Bukkit.addRecipe(recipe);
         plugin.getLogger().info("Registered Time Reverse Blade recipe");
     }

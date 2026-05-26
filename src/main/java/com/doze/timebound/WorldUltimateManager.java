@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
@@ -24,7 +25,8 @@ public final class WorldUltimateManager {
         CHRONO_LOCK_DECELERATION,
         FLASHSTEP_ACCELERATION,
         LUNAR_DIAL_DOMAIN,
-        ETERNITY_SANCTUARY
+        ETERNITY_SANCTUARY,
+        REQUIEM_REVERSE
     }
     private static final int DURATION_TICKS = 200;
     private final Main plugin;
@@ -73,13 +75,41 @@ public final class WorldUltimateManager {
         long originalTime = worldTimeSnapshots.getOrDefault(world.getUID(), world.getTime());
         long currentTime = world.getTime();
         long newTime = switch (ult) {
-            case FLASHSTEP_ACCELERATION -> originalTime + (elapsedTicks * 20L);
-            case CHRONO_LOCK_DECELERATION -> originalTime + (elapsedTicks / 5L);
-            case LUNAR_DIAL_DOMAIN, ETERNITY_SANCTUARY -> originalTime;
+            case FLASHSTEP_ACCELERATION -> originalTime + (elapsedTicks * 200L);
+            case CHRONO_LOCK_DECELERATION -> originalTime + (elapsedTicks * 10L);
+            case REQUIEM_REVERSE -> originalTime - (elapsedTicks * 150L);
+            case ETERNITY_SANCTUARY -> originalTime + (elapsedTicks * 250L);
+            case LUNAR_DIAL_DOMAIN -> originalTime;
             default -> currentTime;
         };
         newTime = newTime % 24000L;
+        if (newTime < 0) newTime += 24000L;
         world.setTime(newTime);
+        if (elapsedTicks % 3 == 0) {
+            addWorldTimeVisuals(world, ult);
+        }
+    }
+    
+    private void addWorldTimeVisuals(World world, Ultimate ult) {
+        for (var p : world.getPlayers()) {
+            Location loc = p.getLocation().add(0, 2, 0);
+            switch (ult) {
+                case FLASHSTEP_ACCELERATION ->
+                    world.spawnParticle(Particle.ELECTRIC_SPARK, loc, 2, 0.5, 0.5, 0.5, 0.01);
+
+                case CHRONO_LOCK_DECELERATION ->
+                    world.spawnParticle(Particle.ASH, loc, 2, 0.5, 0.5, 0.5, 0.01);
+
+                case REQUIEM_REVERSE ->
+                    world.spawnParticle(Particle.REVERSE_PORTAL, loc, 2, 0.5, 0.5, 0.5, 0.01);
+
+                case ETERNITY_SANCTUARY ->
+                    world.spawnParticle(Particle.END_ROD, loc, 2, 0.5, 0.5, 0.5, 0.01);
+
+                case LUNAR_DIAL_DOMAIN ->
+                    world.spawnParticle(Particle.SNOWFLAKE, loc, 1, 0.3, 0.3, 0.3, 0.01);
+            }
+        }
     }
 
     public void end(World world, Runnable onEnd) {

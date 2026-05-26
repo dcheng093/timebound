@@ -85,7 +85,6 @@ public final class MasterOfTimeItems {
         );
         recipe.setIngredient('N', Material.NETHER_STAR);
         recipe.setIngredient('B', new RecipeChoice.MaterialChoice(List.of(Material.NETHERITE_SWORD, Material.MACE)));
-        recipe.setGroup("time_weapons");
         Bukkit.addRecipe(recipe);
         plugin.getLogger().info("Registered Master of Time recipe");
     }

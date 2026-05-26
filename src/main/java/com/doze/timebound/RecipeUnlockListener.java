@@ -115,9 +115,13 @@ public final class RecipeUnlockListener implements Listener {
                 plugin.getGlobalRegistry().logDuplicateViolation(player.getName() + " crafted duplicate Eternity.");
             }
             event.setCurrentItem(MasterOfTimeItems.createCrafted(plugin));
-            MasterOfTimeItems.announceCraft(plugin, player);
-            plugin.getAdvancementManager().grantMasterAdvancement(player);
-            Bukkit.getScheduler().runTask(plugin, () -> plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.CRAFT));
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                MasterOfTimeItems.announceCraft(plugin, player);
+                plugin.getAdvancementManager().grantMasterAdvancement(player);
+                player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.8f, 1.2f);
+                unlockRecipesFromInventory(player, true);
+                plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.CRAFT);
+            });
             return;
         }
         String weaponType = TimeBladeItems.getTaggedType(result);
@@ -140,10 +144,11 @@ public final class RecipeUnlockListener implements Listener {
             ItemStack crafted = result.clone();
             TimeItemUid.ensure(plugin, crafted);
             event.setCurrentItem(crafted);
-            announceWeaponCraft(player, weaponType);
-            plugin.getAdvancementManager().grantWeaponAdvancement(player, weaponType);
             Bukkit.getScheduler().runTask(plugin, () -> {
-                unlockRecipesFromInventory(player, false);
+                announceWeaponCraft(player, weaponType);
+                plugin.getAdvancementManager().grantWeaponAdvancement(player, weaponType);
+                player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.8f, 1.2f);
+                unlockRecipesFromInventory(player, true);
                 plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.CRAFT);
             });
         }

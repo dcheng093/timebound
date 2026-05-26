@@ -607,19 +607,28 @@ public class TimeBoundListener implements Listener {
         caster.getWorld().playSound(caster.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.0f, 0.5f);
         caster.getWorld().spawnParticle(Particle.PORTAL, caster.getLocation().add(0, 1.0, 0), 120, 2.5, 1.5, 2.5, 0.18);
         World w = caster.getWorld();
-        for (Entity entity : w.getNearbyEntities(caster.getLocation(), SERVER_RADIUS, SERVER_RADIUS, SERVER_RADIUS)) {
-            if (entity.equals(caster)) continue;
-            if (entity instanceof Player p && TrustManager.isTrusted(caster, p)) continue;
-            TimeManager.EntityState past = plugin.getTimeManager().peekPast(entity, 100);
-            if (past == null) continue;
-            entity.teleport(past.location);
-            if (entity instanceof LivingEntity living) {
-                var maxHealthAttr = living.getAttribute(Attribute.MAX_HEALTH);
-                double maxHealth = (maxHealthAttr != null) ? maxHealthAttr.getValue() : 20.0;
-                living.setHealth(Math.min(maxHealth, Math.max(0.0, past.health)));
+        plugin.getWorldUltimateManager().tryStart(
+            w,
+            WorldUltimateManager.Ultimate.REQUIEM_REVERSE,
+            caster,
+            () -> {},
+            () -> {
+                for (Entity entity : w.getNearbyEntities(caster.getLocation(), SERVER_RADIUS, SERVER_RADIUS, SERVER_RADIUS)) {
+                    if (entity.equals(caster)) continue;
+                    if (entity instanceof Player p && TrustManager.isTrusted(caster, p)) continue;
+                    TimeManager.EntityState past = plugin.getTimeManager().peekPast(entity, 100);
+                    if (past == null) continue;
+                    entity.teleport(past.location);
+                    if (entity instanceof LivingEntity living) {
+                        var maxHealthAttr = living.getAttribute(Attribute.MAX_HEALTH);
+                        double maxHealth = (maxHealthAttr != null) ? maxHealthAttr.getValue() : 20.0;
+                        living.setHealth(Math.min(maxHealth, Math.max(0.0, past.health)));
+                    }
+                }
+                plugin.getTimeManager().rewindBlocks(100);
             }
-        }
-        plugin.getTimeManager().rewindBlocks(100);
+        );
+        
         plugin.getWorldUltimateManager().broadcastUltimate(caster, "Requiem twists time backwards!", TextColor.color(0xD58DFF));
     }
 
@@ -1233,9 +1242,6 @@ public class TimeBoundListener implements Listener {
         }
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
-            if (!testMode) {
-                regenerateTimeBoundUIDs(player.getInventory());
-            }
             enforceSingleHeldBlade(player);
         }, 2L);
     }

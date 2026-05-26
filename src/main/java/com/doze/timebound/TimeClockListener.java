@@ -40,6 +40,7 @@ public class TimeClockListener implements Listener {
     private final Map<UUID, Map<ClockType, Long>> cooldowns = new EnumMapBackedCooldowns();
     private final Map<UUID, Long> lastSneakToggle = new HashMap<>();
     private final Map<UUID, ClaimFreeze> claimFrozen = new HashMap<>();
+    private final Map<UUID, Integer> claimingPlayers = new HashMap<>();
     private record ClaimFreeze(Location lockAt, int untilTick) {}
     public TimeClockListener(Main plugin) {
         this.plugin = plugin;
@@ -95,6 +96,7 @@ public class TimeClockListener implements Listener {
                     }
                     if (lockedClaimer == null) {
                         lockedClaimer = p.getUniqueId();
+                        claimingPlayers.put(p.getUniqueId(), 0);
                         claimSoundTaskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                             for (Player nearbyPlayer : display.getWorld().getNearbyPlayers(display.getLocation(), 50)) {
                                 nearbyPlayer.playSound(display.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, org.bukkit.SoundCategory.MASTER, 1.2f, 0.8f);
@@ -131,6 +133,7 @@ public class TimeClockListener implements Listener {
                         display.getWorld().spawnParticle(Particle.CLOUD, display.getLocation().add(0, 0.5, 0), 20, 0.25, 0.25, 0.25, 0.05);
                         display.remove();
                         plugin.getGlobalScanner().requestScan(GlobalTimeItemScanner.Reason.CRAFT);
+                        claimingPlayers.remove(p.getUniqueId());
                         cancel();
                         return;
                     }
@@ -230,10 +233,15 @@ public class TimeClockListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMove(PlayerMoveEvent event) {
         Player p = event.getPlayer();
-        ClaimFreeze f = claimFrozen.get(p.getUniqueId());
+        UUID id = p.getUniqueId();
+        if (claimingPlayers.containsKey(id)) {
+            event.setCancelled(true);
+            return;
+        }
+        ClaimFreeze f = claimFrozen.get(id);
         if (f == null) return;
         if (Bukkit.getCurrentTick() >= f.untilTick()) {
-            claimFrozen.remove(p.getUniqueId());
+            claimFrozen.remove(id);
             return;
         }
         event.setTo(f.lockAt());
@@ -303,7 +311,7 @@ public class TimeClockListener implements Listener {
         target.setYaw(from.getYaw());
         target.setPitch(from.getPitch());
         player.teleport(target);
-        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 160, 2, false, true, true)); // Speed III 8s
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 160, 2, false, true, true));
         player.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, target.add(0, 1.0, 0), 40, 0.4, 0.7, 0.4, 0.1);
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.9f, 1.4f);
         return true;
@@ -327,7 +335,7 @@ public class TimeClockListener implements Listener {
             if (e.equals(player)) continue;
             TimeFreezeManager.freeze(e);
             e.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 10, false, true, true));
-            e.setFreezeTicks(e.getMaxFreezeTicks() + 200); // lingering freeze overlay
+            e.setFreezeTicks(e.getMaxFreezeTicks() + 200);
         }
         player.getWorld().spawnParticle(Particle.SNOWFLAKE, player.getLocation().add(0, 1.0, 0), 80, 2.0, 1.0, 2.0, 0.03);
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_CONDUIT_ACTIVATE, 0.9f, 0.8f);
