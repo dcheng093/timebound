@@ -1245,29 +1245,6 @@ public class TimeBoundListener implements Listener {
             enforceSingleHeldBlade(player);
         }, 2L);
     }
-    
-    private void regenerateTimeBoundUIDs(PlayerInventory inventory) {
-        boolean changed = false;
-        for (int i = 0; i < inventory.getSize(); i++) {
-            ItemStack item = inventory.getItem(i);
-            if (item != null && (TimeBoundItems.isTimeItem(plugin, item) || TimeBoundItems.isMasterOfTime(plugin, item))) {
-                TimeItemUid.regenerate(plugin, item);
-                changed = true;
-            }
-        }
-        if (changed) {
-            Player owner = null;
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.getInventory().equals(inventory)) {
-                    owner = p;
-                    break;
-                }
-            }
-            if (owner != null && owner.getGameMode() == GameMode.CREATIVE) {
-                Bukkit.getScheduler().runTask(plugin, owner::updateInventory);
-            }
-        }
-    }
 
     private boolean rollPassive() {
         return ThreadLocalRandom.current().nextInt(100) < DEFAULT_PASSIVE_CHANCE;
