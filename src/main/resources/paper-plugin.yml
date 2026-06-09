@@ -1,7 +1,9 @@
 name: TimeBound
 version: 1.0
 main: com.doze.timebound.Main
+bootstrapper: com.doze.timebound.TimeBoundBootstrap
 api-version: "1.21"
+author: doze
 
 commands:
   timebound:
@@ -15,6 +17,7 @@ commands:
   untrust:
     description: Remove trust from a player
     usage: /untrust <player>
+
 permissions:
   timebound.admin:
     description: Access to TimeBound admin commands

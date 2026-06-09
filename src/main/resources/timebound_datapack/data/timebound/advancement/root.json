@@ -1,19 +1,18 @@
 {
-  "parent": "timebound:root",
   "display": {
     "icon": {
-      "id": "minecraft:netherite_sword"
+      "id": "minecraft:clock"
     },
-    "title": "Eternity",
-    "description": "Control Time, Control Everything",
+    "title": "Timebound",
+    "description": "Master the power of time itself",
+    "background": "minecraft:block/white_concrete",
     "frame": "challenge",
     "show_toast": true,
     "announce_to_chat": true
   },
   "criteria": {
-    "crafted": {
+    "timebound": {
       "trigger": "minecraft:impossible"
     }
   }
 }
-

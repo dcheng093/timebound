@@ -28,6 +28,12 @@ public class KeybindListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onSwapHands(PlayerSwapHandItemsEvent e) {
         Player p = e.getPlayer();
+        // Only intercept the swap-hands key when the player is actually holding a
+        // TimeBound weapon/clock that uses it. Otherwise let the vanilla off-hand
+        // swap happen normally so players can still off-hand shields, totems, etc.
+        if (!keybindManager.hasKeybindWeapon(p)) {
+            return;
+        }
         // cancel the actual swap
         e.setCancelled(true);
         boolean isUltimate = p.isSneaking();

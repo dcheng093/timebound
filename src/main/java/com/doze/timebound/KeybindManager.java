@@ -162,6 +162,15 @@ public class KeybindManager {
         plugin.getListener().activateWeaponUltimate(player, weapon);
     }
     
+    /**
+     * Whether the player is currently holding a TimeBound weapon/clock that uses the
+     * swap-hands (F) keybind. Used so the listener only intercepts the off-hand swap
+     * for time items and lets vanilla swaps (shields, totems, etc.) happen normally.
+     */
+    public boolean hasKeybindWeapon(Player player) {
+        return getCurrentWeapon(player) != null;
+    }
+
     private Weapon getCurrentWeapon(Player player) {
         if (TimeBoundItems.getClockType(plugin, player.getInventory().getItemInOffHand()) != null) {
             return Weapon.TIME_CLOCK;

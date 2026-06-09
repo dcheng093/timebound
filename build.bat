@@ -4,10 +4,23 @@ REM This ensures the plugin.yml is included in the JAR
 
 setlocal enabledelayedexpansion
 
-REM Check if Maven is installed
+REM Locate Maven: prefer the bundled path, otherwise fall back to mvn on PATH
+set "MVN_CMD="
 if exist "C:\Users\User\.maven\maven-3.9.16\bin\mvn.cmd" (
-    echo Found Maven at C:\Users\User\.maven\maven-3.9.16\bin\mvn.cmd
-    call "C:\Users\User\.maven\maven-3.9.16\bin\mvn.cmd" clean package
+    set "MVN_CMD=C:\Users\User\.maven\maven-3.9.16\bin\mvn.cmd"
+) else (
+    for %%I in (mvn.cmd mvn.bat mvn) do (
+        if not defined MVN_CMD (
+            for /f "delims=" %%P in ('where %%I 2^>nul') do (
+                if not defined MVN_CMD set "MVN_CMD=%%P"
+            )
+        )
+    )
+)
+
+if defined MVN_CMD (
+    echo Found Maven at !MVN_CMD!
+    call "!MVN_CMD!" clean package
     if !errorlevel! equ 0 (
         echo.
         echo ============================================
@@ -25,7 +38,8 @@ if exist "C:\Users\User\.maven\maven-3.9.16\bin\mvn.cmd" (
         pause
     )
 ) else (
-    echo ERROR: Maven not found at expected location
-    echo Please ensure Maven is installed at: C:\Users\User\.maven\maven-3.9.16\bin\mvn.cmd
+    echo ERROR: Maven not found.
+    echo Install Maven and make sure 'mvn' is on your PATH, then run this again.
+    echo Note: this plugin targets Java 21, so a JDK 21 must also be installed.
     pause
 )

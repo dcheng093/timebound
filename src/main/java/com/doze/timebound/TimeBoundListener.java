@@ -1392,6 +1392,10 @@ public class TimeBoundListener implements Listener {
     }
 
     private void enforceSingleHeldBlade(Player player) {
+        // Never move/drop/delete items for a creative-mode player. Creative legitimately
+        // allows duplicate items, and manipulating the inventory mid-creative-action is
+        // what made items vanish when interacting with the creative inventory.
+        if (player.getGameMode() == GameMode.CREATIVE) return;
         PlayerInventory inventory = player.getInventory();
         Blade offhandBladeType = getBlade(inventory.getItemInOffHand());
         if (offhandBladeType == null) return;
